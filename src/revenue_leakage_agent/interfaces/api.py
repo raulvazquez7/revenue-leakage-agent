@@ -99,6 +99,10 @@ def create_app(
 
     @app.post("/threads")
     def create_thread() -> ThreadCreated:
+        """Hand out a new thread ID. Nothing is stored yet: the thread exists
+        once its first message is posted, so ``GET /threads/{id}`` (and
+        ``/resume``) return 404 until then."""
+
         return ThreadCreated(thread_id=str(uuid4()))
 
     @app.post("/threads/{thread_id}/messages")
@@ -124,6 +128,8 @@ def create_app(
 
     @app.get("/threads/{thread_id}")
     def get_thread(thread_id: str, request: Request) -> ThreadState:
+        """Current state of a thread; 404 until its first message is posted."""
+
         snapshot = _known_snapshot(request, thread_id)
         values = cast(AgentState, snapshot.values)
         return ThreadState(

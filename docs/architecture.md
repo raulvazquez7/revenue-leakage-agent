@@ -212,8 +212,11 @@ There are two kinds of state, stored separately.
 | tests | `InMemorySaver`, or SQLite in `test_persistence.py` |
 
 A checkpointer is required for `interrupt()` to resume. The API refuses an
-injected graph that has none. With SQLite, a conversation (including a pending
-approval) survives a restart; the API closes the connection on shutdown.
+injected graph that has none. With SQLite, a thread (including a pending
+approval) survives a restart, which in practice matters for the API: the client
+keeps the `thread_id`, while the Streamlit UI (per browser session) and the CLI
+(per run) start a new thread each time. The API and CLI close the connection on
+shutdown.
 
 **Sandbox ledgers** (the "writes"), under `SANDBOX_DIR` (default `sandbox/`,
 git-ignored):
@@ -277,7 +280,7 @@ API endpoints:
 | Method and path | Body | Result |
 |---|---|---|
 | `GET /health` | | `{"status": "ok"}` |
-| `POST /threads` | | `{"thread_id": ...}` (a new UUID; nothing is stored until the first message) |
+| `POST /threads` | | `{"thread_id": ...}` (a new UUID; nothing is stored until the first message, so `GET /threads/{id}` returns 404 until then) |
 | `POST /threads/{id}/messages` | `{"content": "..."}` | `TurnResponse`: this turn's replies and the pending interrupt, if any. 409 if an approval is pending. |
 | `POST /threads/{id}/resume` | `{"decision": "approve" \| "reject"}` | `TurnResponse`. 404 for an unknown thread, 409 if nothing is pending. |
 | `GET /threads/{id}` | | `active_scope`, `findings`, `pending_action`, `applied_actions`, `interrupt`. 404 for an unknown thread. |

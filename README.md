@@ -133,7 +133,7 @@ docker compose down -v      # stop and drop the state volume
 
 ```bash
 curl -s -X POST localhost:8000/threads
-# {"thread_id":"<id>"}
+# {"thread_id":"<id>"}  (GET /threads/<id> returns 404 until the first message)
 curl -s -X POST localhost:8000/threads/<id>/messages \
   -H 'Content-Type: application/json' -d '{"content": "Investigate SUB-2001"}'
 # {"thread_id":"<id>","replies":["..."],"interrupt":null}
@@ -150,8 +150,10 @@ curl -s localhost:8000/threads/<id>   # scope, findings, pending/applied actions
 
 Configuration lives in [`.env.example`](.env.example): model names and
 reasoning effort per node, timeouts, history budgets, `CHECKPOINT_DB` (set it to
-persist conversations in SQLite; unset keeps them in memory) and the optional
-Langfuse keys.
+keep checkpoints in SQLite; unset keeps them in memory) and the optional
+Langfuse keys. With SQLite, API threads (the client keeps the `thread_id`)
+survive a restart; the UI and CLI start a new thread per session, so their
+conversations don't carry over.
 
 ## Demo script
 
