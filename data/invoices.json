@@ -1,0 +1,200 @@
+[
+  {
+    "invoice_id": "INV-5001",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-01-03",
+    "due_date": "2025-01-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5002",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-02-03",
+    "due_date": "2025-02-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5003",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-03-03",
+    "due_date": "2025-03-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5004",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-04-03",
+    "due_date": "2025-04-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5005",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-05-03",
+    "due_date": "2025-05-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5006",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-07-03",
+    "due_date": "2025-07-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5007",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-08-03",
+    "due_date": "2025-08-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5008",
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "issue_date": "2025-09-03",
+    "due_date": "2025-09-28",
+    "amount_invoiced": 10000,
+    "currency": "USD",
+    "status": "open",
+    "description": "Monthly Fleet Analytics subscription"
+  },
+  {
+    "invoice_id": "INV-5021",
+    "plan_id": "SUB-2014",
+    "customer_name": "Bluefin Logistics",
+    "issue_date": "2025-05-08",
+    "due_date": "2025-06-07",
+    "amount_invoiced": 20000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Quarterly Route Optimizer subscription"
+  },
+  {
+    "invoice_id": "INV-5022",
+    "plan_id": "SUB-2014-A1",
+    "customer_name": "Bluefin Logistics",
+    "issue_date": "2025-08-12",
+    "due_date": "2025-09-11",
+    "amount_invoiced": 22500,
+    "currency": "EUR",
+    "status": "paid",
+    "description": "Quarterly Route Optimizer + Priority Support (EU entity)"
+  },
+  {
+    "invoice_id": "INV-5041",
+    "plan_id": "SUB-2020",
+    "customer_name": "Helix Biotech",
+    "issue_date": "2025-02-06",
+    "due_date": "2025-03-08",
+    "amount_invoiced": 135000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Annual Lab Data Platform license"
+  },
+  {
+    "invoice_id": "INV-5061",
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "issue_date": "2025-04-02",
+    "due_date": "2025-04-30",
+    "amount_invoiced": 3000,
+    "currency": "GBP",
+    "status": "paid",
+    "description": "Monthly Content Insights subscription"
+  },
+  {
+    "invoice_id": "INV-5062",
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "issue_date": "2025-05-02",
+    "due_date": "2025-05-30",
+    "amount_invoiced": 3000,
+    "currency": "GBP",
+    "status": "paid",
+    "description": "Monthly Content Insights subscription"
+  },
+  {
+    "invoice_id": "INV-5063",
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "issue_date": "2025-06-02",
+    "due_date": "2025-06-30",
+    "amount_invoiced": 3000,
+    "currency": "GBP",
+    "status": "paid",
+    "description": "Monthly Content Insights subscription"
+  },
+  {
+    "invoice_id": "INV-5064",
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "issue_date": "2025-07-02",
+    "due_date": "2025-07-30",
+    "amount_invoiced": 3000,
+    "currency": "GBP",
+    "status": "paid",
+    "description": "Monthly Content Insights subscription"
+  },
+  {
+    "invoice_id": "INV-5065",
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "issue_date": "2025-08-02",
+    "due_date": "2025-08-30",
+    "amount_invoiced": 3000,
+    "currency": "GBP",
+    "status": "paid",
+    "description": "Monthly Content Insights subscription"
+  },
+  {
+    "invoice_id": "INV-5066",
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "issue_date": "2025-09-02",
+    "due_date": "2025-09-30",
+    "amount_invoiced": 3000,
+    "currency": "GBP",
+    "status": "paid",
+    "description": "Monthly Content Insights subscription"
+  },
+  {
+    "invoice_id": "INV-5090",
+    "plan_id": "",
+    "customer_name": "Bluefin Logistics",
+    "issue_date": "2025-11-14",
+    "due_date": "2025-12-14",
+    "amount_invoiced": 18000,
+    "currency": "USD",
+    "status": "paid",
+    "description": "Renewal payment received without a contract reference"
+  }
+]

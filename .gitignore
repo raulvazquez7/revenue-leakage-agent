@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+
+# Build artifacts
+build/
+dist/
+site/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+__pypackages__/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Type checkers and linters
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS and IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Generated sandbox output
+sandbox/
+logs/
+*.log
+
+# Agent/local assistant artifacts
+.agent/
+.agents/
+.claude/
+CLAUDE.md

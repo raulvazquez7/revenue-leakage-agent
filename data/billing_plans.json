@@ -1,0 +1,66 @@
+[
+  {
+    "plan_id": "SUB-2001",
+    "customer_name": "Northwind Robotics",
+    "total_value": 120000,
+    "currency": "USD",
+    "cadence": "Monthly",
+    "start_date": "2025-01-01",
+    "entitlements": [
+      "Fleet Analytics",
+      "Standard Support"
+    ],
+    "notes": "12-month subscription; 10000 USD per month."
+  },
+  {
+    "plan_id": "SUB-2014",
+    "customer_name": "Bluefin Logistics",
+    "total_value": 80000,
+    "currency": "USD",
+    "cadence": "Quarterly",
+    "start_date": "2025-02-01",
+    "entitlements": [
+      "Route Optimizer"
+    ],
+    "notes": "Original term; superseded by SUB-2014-A1 from 2025-08-01."
+  },
+  {
+    "plan_id": "SUB-2014-A1",
+    "customer_name": "Bluefin Logistics",
+    "total_value": 96000,
+    "currency": "USD",
+    "cadence": "Quarterly",
+    "start_date": "2025-08-01",
+    "amends": "SUB-2014",
+    "entitlements": [
+      "Route Optimizer",
+      "Priority Support"
+    ],
+    "notes": "Upgrade effective 2025-08-01. Quarterly target now 24000 USD; customer is billed from the EU entity."
+  },
+  {
+    "plan_id": "SUB-2020",
+    "customer_name": "Helix Biotech",
+    "total_value": 150000,
+    "currency": "USD",
+    "cadence": "Annual",
+    "start_date": "2025-02-01",
+    "entitlements": [
+      "Lab Data Platform",
+      "Onboarding"
+    ],
+    "notes": "Enterprise annual contract."
+  },
+  {
+    "plan_id": "SUB-2033",
+    "customer_name": "Orchard Media",
+    "total_value": 36000,
+    "currency": "GBP",
+    "cadence": "Monthly",
+    "start_date": "2025-04-01",
+    "entitlements": [
+      "Content Insights"
+    ],
+    "notes": "UK customer billed monthly in GBP."
+  }
+]

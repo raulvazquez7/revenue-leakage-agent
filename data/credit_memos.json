@@ -1,0 +1,11 @@
+[
+  {
+    "memo_id": "MEMO-701",
+    "plan_id": "SUB-2014-A1",
+    "invoice_id": "INV-5022",
+    "amount": 1200,
+    "currency": "USD",
+    "issue_date": "2025-08-25",
+    "reason": "FX overbilling adjustment (EUR to USD)"
+  }
+]
