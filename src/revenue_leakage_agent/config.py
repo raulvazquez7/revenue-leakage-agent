@@ -118,6 +118,22 @@ class AppSettings(BaseSettings):
         description="Writable sandbox ledgers.",
     )
 
+    checkpoint_db: Path | None = Field(
+        default=None,
+        description="SQLite file for durable conversation checkpoints; "
+        "unset keeps checkpoints in memory.",
+    )
+    router_history_messages: int = Field(
+        default=12,
+        ge=1,
+        description="Max recent messages sent to the router and conversational models.",
+    )
+    agent_history_messages: int = Field(
+        default=40,
+        ge=1,
+        description="Max recent messages sent to the investigator model.",
+    )
+
     langfuse_secret_key: str | None = Field(default=None)
     langfuse_public_key: str | None = Field(default=None)
     langfuse_base_url: str | None = Field(default=None)
