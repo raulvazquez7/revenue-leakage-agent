@@ -238,12 +238,16 @@ def _expected_periods(
     months = CADENCE_MONTHS[plan.cadence]
     horizon = max(invoice.issue_date for invoice in invoices)
 
+    # Period k starts at start_date + k * months (clamped to month end), so a
+    # Jan-31 start gives Feb-28, Mar-31, Apr-30 rather than drifting to the 28th.
     periods: list[tuple[date, date]] = []
-    cursor = plan.start_date
-    while cursor <= horizon:
-        next_start = _add_months(cursor, months)
-        periods.append((cursor, next_start))
-        cursor = next_start
+    k = 0
+    start = plan.start_date
+    while start <= horizon:
+        next_start = _add_months(plan.start_date, (k + 1) * months)
+        periods.append((start, next_start))
+        k += 1
+        start = next_start
     return periods
 
 

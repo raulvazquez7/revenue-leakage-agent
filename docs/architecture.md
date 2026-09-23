@@ -128,7 +128,9 @@ from:
 1. Expected amount per period = `total_value / periods_per_year` (Monthly 12,
    Quarterly 4, Annual 1), rounded half-up to cents.
 2. Periods are rebuilt from the plan `start_date` in cadence steps up to the
-   last invoice's `issue_date`. A plan with no invoices produces no periods.
+   last invoice's `issue_date`; period k starts at `start_date` plus k cadence
+   steps, clamped to the month end (a Jan 31 monthly start gives Feb 28,
+   Mar 31, Apr 30). A plan with no invoices produces no periods.
 3. Each invoice lands in the period containing its `issue_date`. Foreign
    currency invoices are converted with the exact-date FX rate; the evidence
    string records amount, rate, date and rounding policy.

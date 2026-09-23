@@ -135,6 +135,45 @@ def test_fx_overbilling_marked_already_corrected_by_credit_memo() -> None:
     assert findings[0]["recommended_action"] == "none"
 
 
+def test_month_end_start_does_not_drift_to_the_28th() -> None:
+    """Each period starts at start_date + k months, not previous start + 1."""
+
+    plan = _plan("SUB-EOM", Decimal("120000"), "Monthly", start_date=date(2025, 1, 31))
+    invoices = [
+        _invoice(f"INV-{day}", "SUB-EOM", day, Decimal("10000"))
+        for day in ("2025-01-31", "2025-02-28", "2025-03-31", "2025-04-30")
+    ]
+
+    comparison = _compare(plan, invoices)
+
+    assert [row["period_start"] for row in comparison["periods"]] == [
+        "2025-01-31",
+        "2025-02-28",
+        "2025-03-31",
+        "2025-04-30",
+    ]
+    assert [row["period_end"] for row in comparison["periods"]] == [
+        "2025-02-27",
+        "2025-03-30",
+        "2025-04-29",
+        "2025-05-30",
+    ]
+    assert comparison["findings"] == []
+
+
+def test_leap_day_annual_start_returns_to_feb_29_in_leap_years() -> None:
+    plan = _plan("SUB-LEAP", Decimal("1000"), "Annual", start_date=date(2024, 2, 29))
+    starts = ["2024-02-29", "2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]
+    invoices = [
+        _invoice(f"INV-{day}", "SUB-LEAP", day, Decimal("1000")) for day in starts
+    ]
+
+    comparison = _compare(plan, invoices)
+
+    assert [row["period_start"] for row in comparison["periods"]] == starts
+    assert comparison["findings"] == []
+
+
 def test_converts_fx_with_documented_rounding_policy() -> None:
     result = convert_amount(
         amount=Decimal("22500"),
