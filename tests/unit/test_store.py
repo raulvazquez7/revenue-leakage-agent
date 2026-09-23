@@ -90,3 +90,43 @@ def test_rollback_removes_sandbox_record_and_reopens_idempotency(
     assert removed["source_action_id"] == "DRAFT-CM-ROLL"
     assert not store.get_action_already_applied("DRAFT-CM-ROLL")
     assert store.remove_sandbox_record("credit_memo", "DRAFT-CM-ROLL") is None
+
+
+def test_reset_sandbox_removes_ledgers_and_audit_log_only(store: JsonStore) -> None:
+    draft = CreditMemoDraft(
+        action_id="DRAFT-CM-RESET",
+        invoice_id="INV-5022",
+        amount=Decimal("1200"),
+        currency="USD",
+        reason="FX overbilling correction.",
+    )
+    store.append_credit_memo(draft.model_dump(mode="json"))
+    store.append_audit_log({"event_type": "action_applied"})
+    store.data_dir.mkdir(parents=True)
+    dataset_file = store.data_dir / "credit_memos.json"
+    dataset_file.write_text("[]\n", encoding="utf-8")
+    unrelated = store.sandbox_dir / "notes.txt"
+    unrelated.write_text("keep me", encoding="utf-8")
+
+    removed = store.reset_sandbox()
+
+    assert sorted(path.name for path in removed) == [
+        "audit_log.json",
+        "credit_memos.json",
+    ]
+    assert store.load_audit_log() == []
+    assert not store.get_action_already_applied("DRAFT-CM-RESET")
+    assert dataset_file.exists()
+    assert unrelated.exists()
+    assert store.reset_sandbox() == []
+
+
+def test_load_audit_log_returns_entries_in_order(store: JsonStore) -> None:
+    assert store.load_audit_log() == []
+
+    store.append_audit_log({"event_type": "action_applied"})
+    store.append_audit_log({"event_type": "action_rolled_back"})
+
+    entries = store.load_audit_log()
+    assert [entry["audit_id"] for entry in entries] == ["AUD-0001", "AUD-0002"]
+    assert entries[1]["event_type"] == "action_rolled_back"

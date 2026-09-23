@@ -20,6 +20,7 @@ SANDBOX_LEDGERS: dict[str, str] = {
     "credit_memo": "credit_memos.json",
     "plan_amendment": "plan_amendments.json",
 }
+AUDIT_LOG = "audit_log.json"
 
 
 def _json_default(value: Any) -> str:
@@ -160,7 +161,7 @@ class JsonStore:
 
     def append_audit_log(self, entry: dict[str, Any]) -> dict[str, Any]:
         self.sandbox_dir.mkdir(parents=True, exist_ok=True)
-        path = self.sandbox_dir / "audit_log.json"
+        path = self.sandbox_dir / AUDIT_LOG
         records = self._read_json_list(path)
         audit_entry = {
             "audit_id": f"AUD-{len(records) + 1:04d}",
@@ -170,6 +171,26 @@ class JsonStore:
         records.append(audit_entry)
         self._write_json(path, records)
         return audit_entry
+
+    def load_audit_log(self) -> list[dict[str, Any]]:
+        """Audit entries in the order they were written (empty when none)."""
+
+        return self._read_json_list(self.sandbox_dir / AUDIT_LOG)
+
+    def reset_sandbox(self) -> list[Path]:
+        """Delete the sandbox ledgers and audit log; return the removed paths.
+
+        Only known files under ``sandbox_dir`` are touched: the read-only dataset
+        in ``data_dir`` and any unrelated sandbox files are left alone.
+        """
+
+        removed: list[Path] = []
+        for name in (*SANDBOX_LEDGERS.values(), AUDIT_LOG):
+            path = self.sandbox_dir / name
+            if path.is_file():
+                path.unlink()
+                removed.append(path)
+        return removed
 
     def _ledger_path(self, action_type: str) -> Path:
         ledger = SANDBOX_LEDGERS.get(action_type)
