@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import argparse
 import json
 import warnings
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, cast
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from revenue_leakage_agent.config import get_settings
@@ -25,9 +27,38 @@ warnings.filterwarnings(
 )
 
 
-def main() -> None:
-    graph = build_graph(checkpointer=build_checkpointer(get_settings()))
-    context = AgentContext(store=JsonStore(get_settings()))
+def main(argv: Sequence[str] | None = None) -> None:
+    """Interactive terminal chat; ``--verbose`` adds the raw per-chunk trace."""
+
+    args = _parse_args(argv)
+    settings = get_settings()
+    checkpointer = build_checkpointer(settings)
+    try:
+        graph = build_graph(checkpointer=checkpointer)
+        _chat(graph, AgentContext(store=JsonStore(settings)), verbose=args.verbose)
+    except (KeyboardInterrupt, EOFError):
+        print("\nBye.")
+    finally:
+        if isinstance(checkpointer, SqliteSaver):
+            checkpointer.conn.close()
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="revenue-leakage-agent",
+        description="Chat with the revenue leakage agent in the terminal. "
+        "Type 'exit' (or press Ctrl-D) to quit.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="also print every raw graph update chunk as JSON",
+    )
+    return parser.parse_args(argv)
+
+
+def _chat(graph: AgentGraph, context: AgentContext, *, verbose: bool) -> None:
     thread_id = f"cli-{uuid4()}"
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
@@ -46,27 +77,11 @@ def main() -> None:
                 {"messages": [HumanMessage(content=user_input)]},
                 config,
                 context,
-            )
+            ),
+            verbose=verbose,
         )
         while interrupt_payload is not None:
-            action_raw = interrupt_payload.get("action", {})
-            action = (
-                cast(dict[str, Any], action_raw) if isinstance(action_raw, dict) else {}
-            )
-            print("\nApproval required:")
-            print(f"- Action: {action.get('action_type')}")
-            if action.get("plan_id"):
-                print(f"- Plan: {action.get('plan_id')}")
-            if action.get("invoice_id"):
-                print(f"- Invoice: {action.get('invoice_id')}")
-            if action.get("amount") is not None:
-                print(f"- Amount: {action.get('amount')} {action.get('currency')}")
-            if action.get("change_set") is not None:
-                print(f"- Change set: {_to_json(action.get('change_set'))}")
-            if action.get("sandbox_record_id"):
-                print(f"- Sandbox record: {action.get('sandbox_record_id')}")
-            if action.get("reason"):
-                print(f"- Reason: {action.get('reason')}")
+            _print_approval(interrupt_payload)
             decision = input("Approve? [approve/reject]: ").strip().lower()
             interrupt_payload = _run_stream(
                 _stream(
@@ -74,8 +89,28 @@ def main() -> None:
                     Command(resume={"decision": decision}),
                     config,
                     context,
-                )
+                ),
+                verbose=verbose,
             )
+
+
+def _print_approval(interrupt_payload: dict[str, Any]) -> None:
+    action_raw = interrupt_payload.get("action", {})
+    action = cast(dict[str, Any], action_raw) if isinstance(action_raw, dict) else {}
+    print("\nApproval required:")
+    print(f"- Action: {action.get('action_type')}")
+    if action.get("plan_id"):
+        print(f"- Plan: {action.get('plan_id')}")
+    if action.get("invoice_id"):
+        print(f"- Invoice: {action.get('invoice_id')}")
+    if action.get("amount") is not None:
+        print(f"- Amount: {action.get('amount')} {action.get('currency')}")
+    if action.get("change_set") is not None:
+        print(f"- Change set: {_to_json(action.get('change_set'))}")
+    if action.get("sandbox_record_id"):
+        print(f"- Sandbox record: {action.get('sandbox_record_id')}")
+    if action.get("reason"):
+        print(f"- Reason: {action.get('reason')}")
 
 
 def _stream(
@@ -94,9 +129,12 @@ def _stream(
     )
 
 
-def _run_stream(stream: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
+def _run_stream(
+    stream: Iterable[dict[str, Any]], *, verbose: bool = False
+) -> dict[str, Any] | None:
     for chunk in stream:
-        print(f"\n[trace] chunk={_to_json(chunk)}")
+        if verbose:
+            print(f"\n[trace] chunk={_to_json(chunk)}")
         if "__interrupt__" in chunk:
             interrupts = chunk["__interrupt__"]
             first_interrupt = interrupts[0]

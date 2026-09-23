@@ -38,7 +38,7 @@ uv run task check      # ruff format --check, ruff check, pyright
 uv run task test       # pytest (unit + integration, excludes evals)
 uv run task precommit  # pre-commit hooks on all files
 uv run task eval       # live-model evals (needs OPENAI_API_KEY, costs money)
-uv run task ui         # also: task cli, task api, task studio
+uv run task ui         # also: task cli [--verbose], task api, task studio
 ```
 
 Run `uv run task check && uv run task test` before proposing a change.

@@ -114,7 +114,7 @@ uv run task ui          # Streamlit UI on http://localhost:8501
 Other ways to run it:
 
 ```bash
-uv run task cli         # terminal chat with a verbose trace (same as: uv run revenue-leakage-agent)
+uv run task cli         # terminal chat with a node/state trace (= uv run revenue-leakage-agent); --verbose adds raw chunks
 uv run task api         # FastAPI on http://localhost:8000 (OpenAPI docs at /docs)
 uv run task studio      # LangGraph Studio via `langgraph dev` (runs in an isolated uvx env)
 ```
