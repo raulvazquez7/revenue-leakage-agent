@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import warnings
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, cast
 from uuid import uuid4
@@ -19,12 +18,6 @@ from revenue_leakage_agent.messages import extract_ai_text
 from revenue_leakage_agent.persistence import build_checkpointer
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.store import JsonStore
-
-warnings.filterwarnings(
-    "ignore",
-    message="Pydantic serializer warnings",
-    category=UserWarning,
-)
 
 
 def main(argv: Sequence[str] | None = None) -> None:

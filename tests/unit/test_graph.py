@@ -83,3 +83,10 @@ def test_agent_model_is_bound_without_parallel_tool_calls() -> None:
 
     assert len(agent.bind_tools_kwargs) == 1
     assert agent.bind_tools_kwargs[0]["parallel_tool_calls"] is False
+
+
+def test_router_model_does_not_stream() -> None:
+    """Its structured output is never shown, and streaming it warns (see
+    test_openai_router_streams_turn_without_pydantic_serializer_warnings)."""
+
+    assert _models().router.disable_streaming is True

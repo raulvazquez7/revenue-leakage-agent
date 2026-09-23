@@ -267,7 +267,7 @@ call sees.
 
 | Interface | Entry point | Notes |
 |---|---|---|
-| Streamlit | `uv run task ui` | Streams tokens with `stream_mode=["messages", "updates"]`. Only `agent` and `conversation` tokens reach the chat; the router's structured-output tokens are filtered out. The interrupt is taken from the `updates` stream (with `get_state()` as a fallback) and drawn as an approval card. The sidebar shows the thread ID, audit log, **New conversation** and **Reset sandbox**. |
+| Streamlit | `uv run task ui` | Streams tokens with `stream_mode=["messages", "updates"]`. Only `agent` and `conversation` tokens reach the chat; the router's structured output is filtered out (the default router model is built with `disable_streaming=True`, so it arrives as one message). The interrupt is taken from the `updates` stream (with `get_state()` as a fallback) and drawn as an approval card. The sidebar shows the thread ID, audit log, **New conversation** and **Reset sandbox**. |
 | CLI | `uv run task cli` | `stream_mode="updates"`, prints each node, state change and tool result as a trace (`--verbose` also dumps every raw chunk), and asks `approve/reject` on interrupts. Ctrl-C/Ctrl-D exit cleanly and close the SQLite connection if one was opened. |
 | HTTP API | `uv run task api` | FastAPI with sync endpoints (the graph is sync). Models and the checkpointer are built in the lifespan, so importing the module needs no API key. |
 | Studio | `uv run task studio` | `langgraph dev` via `uvx` with `langgraph.json` pointing at `graph.py:make_graph`. |

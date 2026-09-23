@@ -8,7 +8,6 @@ Stream/approval logic lives in :mod:`revenue_leakage_agent.interfaces.streaming`
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import Any, cast
 from uuid import uuid4
 
@@ -32,11 +31,6 @@ from revenue_leakage_agent.store import JsonStore
 
 logger = logging.getLogger(__name__)
 
-warnings.filterwarnings(
-    "ignore",
-    message="Pydantic serializer warnings",
-    category=UserWarning,
-)
 
 EXAMPLE_PROMPTS = (
     "What can you do?",
