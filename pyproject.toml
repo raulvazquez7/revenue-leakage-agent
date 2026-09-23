@@ -19,6 +19,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.6.2",
     "pyright>=1.1.0",
     "pytest>=8.0.0",
     "pytest-cov>=6.0.0",
@@ -35,6 +36,7 @@ lint = "ruff check ."
 typecheck = "pyright"
 test = "pytest"
 check = "ruff format --check . && ruff check . && pyright"
+precommit = "pre-commit run --all-files"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
