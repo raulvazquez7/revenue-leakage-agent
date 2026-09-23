@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -162,13 +165,73 @@ def test_approval_flow_over_http_writes_ledger(seeded_store: JsonStore) -> None:
     assert [row["invoice_id"] for row in ledger] == ["INV-MG-0001"]
 
 
-def test_default_app_imports_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Building the module-level app must not construct models."""
+def test_default_app_imports_without_api_key(tmp_path: Path) -> None:
+    """Building the module-level app must not construct models.
 
-    monkeypatch.setenv("OPENAI_API_KEY", "")
-    from revenue_leakage_agent.interfaces import api
+    Runs in a fresh interpreter from an empty directory so neither an already
+    imported module nor a local ``.env`` can mask a missing key.
+    """
 
-    assert api.app.title
+    env = {**os.environ, "OPENAI_API_KEY": ""}
+    result = subprocess.run(
+        [sys.executable, "-c", "import revenue_leakage_agent.interfaces.api"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_injected_graph_without_checkpointer_is_rejected(
+    seeded_store: JsonStore,
+) -> None:
+    models = AgentModels(
+        router=scripted(route("conversation", "chit_chat")),
+        agent=scripted(AIMessage(content="unused")),
+        conversational=scripted(AIMessage(content="unused")),
+    )
+
+    with pytest.raises(ValueError, match="checkpointer"):
+        create_app(graph=build_graph(models), store=seeded_store)
+
+
+def test_message_while_approval_pending_is_409(seeded_store: JsonStore) -> None:
+    router = scripted(
+        route("investigation", "investigation"),
+        route("investigation", "investigation"),
+    )
+    agent = scripted(
+        call(
+            "propose_make_good_invoice",
+            plan_id="SUB-2001",
+            amount="10000",
+            reason="Missing June invoice",
+        ),
+        AIMessage(content="drafted, please approve"),
+        call("apply"),
+        AIMessage(content="applied"),
+    )
+
+    for client in _client(seeded_store, router=router, agent=agent):
+        thread_id = _new_thread(client)
+        client.post(
+            f"/threads/{thread_id}/messages",
+            json={"content": "draft a make-good invoice for SUB-2001"},
+        )
+        applying = client.post(
+            f"/threads/{thread_id}/messages", json={"content": "apply it"}
+        ).json()
+        assert applying["interrupt"] is not None
+
+        response = client.post(
+            f"/threads/{thread_id}/messages", json={"content": "something else"}
+        )
+
+        assert response.status_code == 409
+        assert client.get(f"/threads/{thread_id}").json()["interrupt"] is not None
 
 
 def test_default_lifespan_uses_sqlite_and_closes_it(

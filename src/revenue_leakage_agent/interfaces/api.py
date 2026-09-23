@@ -67,16 +67,25 @@ def create_app(
     Missing dependencies are built in the lifespan (not at import), so importing
     this module never needs ``OPENAI_API_KEY``. The default graph uses
     :func:`build_checkpointer`; a SQLite connection it opens is closed on
-    shutdown.
+    shutdown. An injected graph must have a checkpointer: threads, state reads
+    and approval resumes all depend on it.
     """
+
+    if graph is not None and graph.checkpointer is None:  # pyright: ignore[reportUnknownMemberType]
+        raise ValueError(
+            "create_app() needs a graph compiled with a checkpointer; "
+            "pass build_graph(checkpointer=...)."
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         settings = get_settings()
         checkpointer = None if graph is not None else build_checkpointer(settings)
         try:
-            app.state.graph = graph or build_graph(checkpointer=checkpointer)
-            app.state.store = store or JsonStore(settings)
+            app.state.graph = (
+                graph if graph is not None else build_graph(checkpointer=checkpointer)
+            )
+            app.state.store = store if store is not None else JsonStore(settings)
             yield
         finally:
             if isinstance(checkpointer, SqliteSaver):
@@ -96,6 +105,11 @@ def create_app(
     def post_message(
         thread_id: str, body: MessageRequest, request: Request
     ) -> TurnResponse:
+        if _graph(request).get_state(_config(thread_id)).interrupts:
+            raise HTTPException(
+                status_code=409,
+                detail="Approval pending; resolve it via /resume first.",
+            )
         payload: AgentState = {"messages": [HumanMessage(content=body.content)]}
         return _run_turn(request, thread_id, payload)
 
