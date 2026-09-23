@@ -8,13 +8,13 @@ from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.context import AgentContext
 from revenue_leakage_agent.graph import AgentGraph, build_graph
 from revenue_leakage_agent.messages import extract_ai_text
+from revenue_leakage_agent.persistence import build_checkpointer
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.store import JsonStore
 
@@ -26,7 +26,7 @@ warnings.filterwarnings(
 
 
 def main() -> None:
-    graph = build_graph(checkpointer=InMemorySaver())
+    graph = build_graph(checkpointer=build_checkpointer(get_settings()))
     context = AgentContext(store=JsonStore(get_settings()))
     thread_id = f"cli-{uuid4()}"
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}

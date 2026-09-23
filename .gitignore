@@ -48,6 +48,10 @@ sandbox/
 logs/
 *.log
 
+# LangGraph dev server state and local checkpoints
+.langgraph_api/
+.data/
+
 # Agent/local assistant artifacts
 .agent/
 .agents/

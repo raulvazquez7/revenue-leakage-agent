@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 OpenAIReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
@@ -118,9 +118,34 @@ class AppSettings(BaseSettings):
         description="Writable sandbox ledgers.",
     )
 
+    checkpoint_db: Path | None = Field(
+        default=None,
+        description="SQLite file for durable conversation checkpoints; "
+        "unset keeps checkpoints in memory.",
+    )
+    router_history_messages: int = Field(
+        default=12,
+        ge=1,
+        description="Max recent messages sent to the router and conversational models.",
+    )
+    agent_history_messages: int = Field(
+        default=40,
+        ge=1,
+        description="Max recent messages sent to the investigator model.",
+    )
+
     langfuse_secret_key: str | None = Field(default=None)
     langfuse_public_key: str | None = Field(default=None)
     langfuse_base_url: str | None = Field(default=None)
+
+    @field_validator("checkpoint_db", mode="before")
+    @classmethod
+    def _blank_checkpoint_db_is_unset(cls, value: object) -> object:
+        """``CHECKPOINT_DB=`` would otherwise parse as ``Path(".")``."""
+
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache(maxsize=1)

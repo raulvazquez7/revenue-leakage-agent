@@ -10,6 +10,7 @@ dependencies = [
     "langchain-openai==1.6.4",
     "langfuse==4.15.4",
     "langgraph==1.2.12",
+    "langgraph-checkpoint-sqlite==3.1.1",
     "pydantic==2.13.5",
     "pydantic-settings==2.15.0",
     "python-dotenv==1.2.3",
@@ -29,6 +30,7 @@ packages = ["src/revenue_leakage_agent"]
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.13.1",
     "pre-commit>=4.6.2",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
@@ -46,6 +48,8 @@ check = "ruff format --check . && ruff check . && pyright"
 precommit = "pre-commit run --all-files"
 ui = "streamlit run src/revenue_leakage_agent/interfaces/streamlit_app.py"
 cli = "revenue-leakage-agent"
+studio = "uvx --with-editable . --from 'langgraph-cli[inmem]' langgraph dev"
+api = "uvicorn revenue_leakage_agent.interfaces.api:app --reload"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

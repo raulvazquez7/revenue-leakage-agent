@@ -9,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 
 from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.domain.models import InvestigationScope, RouteDecision
+from revenue_leakage_agent.history import dialogue_history
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
@@ -25,12 +26,15 @@ def make_router_node(model: BaseChatModel) -> Callable[[AgentState], dict[str, o
     )
 
     def router_node(state: AgentState) -> dict[str, object]:
-        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(get_settings())}
+        settings = get_settings()
+        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(settings)}
         raw_decision = llm.invoke(
             [
                 SystemMessage(content=prompt),
                 SystemMessage(content=f"Active scope: {state.get('active_scope')}"),
-                *state.get("messages", [])[-8:],
+                *dialogue_history(
+                    state.get("messages", []), settings.router_history_messages
+                ),
             ],
             config=config,
         )

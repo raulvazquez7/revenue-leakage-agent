@@ -1,1 +1,1 @@
-"""User-facing entry points (CLI and Streamlit)."""
+"""User-facing entry points (CLI, Streamlit and HTTP API)."""

@@ -10,6 +10,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
 from revenue_leakage_agent.config import get_settings
+from revenue_leakage_agent.history import recent_history
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
@@ -25,12 +26,15 @@ def make_agent_node(
     llm = model.bind_tools(tools)
 
     def agent_node(state: AgentState) -> dict[str, object]:
-        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(get_settings())}
+        settings = get_settings()
+        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(settings)}
         response = llm.invoke(
             [
                 SystemMessage(content=prompt),
                 SystemMessage(content=_state_context(state)),
-                *state.get("messages", []),
+                *recent_history(
+                    state.get("messages", []), settings.agent_history_messages
+                ),
             ],
             config=config,
         )
