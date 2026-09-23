@@ -7,6 +7,7 @@ Stream/approval logic lives in :mod:`revenue_leakage_agent.interfaces.streaming`
 
 from __future__ import annotations
 
+import logging
 import warnings
 from typing import Any, cast
 from uuid import uuid4
@@ -23,10 +24,13 @@ from revenue_leakage_agent.interfaces.streaming import (
     TurnStream,
     approval_card,
     stream_events,
+    turn_error_message,
 )
 from revenue_leakage_agent.persistence import build_checkpointer
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.store import JsonStore
+
+logger = logging.getLogger(__name__)
 
 warnings.filterwarnings(
     "ignore",
@@ -86,10 +90,28 @@ def _run_turn(graph: AgentGraph, payload: AgentState | Command[Any]) -> None:
 
     turn = TurnStream()
     context = AgentContext(store=_load_store())
-    with st.chat_message("assistant"), st.spinner("Working..."):
-        streamed = st.write_stream(
-            turn.text(stream_events(graph, payload, _config(), context))
-        )
+    streamed: object = None
+    turn_failed = False
+    try:
+        with st.chat_message("assistant"), st.spinner("Working..."):
+            streamed = st.write_stream(
+                turn.text(stream_events(graph, payload, _config(), context))
+            )
+    # Streamlit's own control-flow signals (StopException from st.stop,
+    # RerunException from st.rerun) derive from BaseException, not Exception,
+    # specifically so they pass through a broad `except Exception` like this
+    # one untouched; no explicit re-raise is needed or possible here.
+    except Exception as error:
+        logger.exception("Unhandled error while running an agent turn")
+        message = turn_error_message(error)
+        st.error(message)
+        _chat_messages().append({"role": "assistant", "content": message})
+        turn_failed = True
+
+    if turn_failed:
+        st.session_state.pending_interrupt = None
+        st.rerun()
+
     reply = streamed if isinstance(streamed, str) else ""
     if reply.strip():
         _chat_messages().append({"role": "assistant", "content": reply})

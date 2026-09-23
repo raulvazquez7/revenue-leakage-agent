@@ -12,6 +12,7 @@ from revenue_leakage_agent.interfaces.streaming import (
     approval_card,
     interrupt_payload,
     stream_text,
+    turn_error_message,
 )
 
 
@@ -159,3 +160,23 @@ def test_approval_card_tolerates_unexpected_payload() -> None:
     assert card.title == "Sandbox action"
     assert card.fields == []
     assert card.raw == {}
+
+
+def test_turn_error_message_names_the_exception_type() -> None:
+    message = turn_error_message(ValueError("boom"))
+
+    assert message == (
+        "Something went wrong while running the agent: ValueError. "
+        "Check the terminal logs."
+    )
+
+
+def test_turn_error_message_uses_the_concrete_subclass_name() -> None:
+    class FlakyToolError(RuntimeError):
+        pass
+
+    message = turn_error_message(FlakyToolError("nope"))
+
+    assert message.startswith(
+        "Something went wrong while running the agent: FlakyToolError."
+    )
