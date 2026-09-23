@@ -8,13 +8,13 @@ from uuid import uuid4
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.context import AgentContext
 from revenue_leakage_agent.graph import build_graph
 from revenue_leakage_agent.messages import extract_ai_text
+from revenue_leakage_agent.persistence import build_checkpointer
 from revenue_leakage_agent.store import JsonStore
 
 warnings.filterwarnings(
@@ -29,7 +29,9 @@ st.title("Revenue Leakage Agent")
 
 def _init_session() -> None:
     if "graph" not in st.session_state:
-        st.session_state.graph = build_graph(checkpointer=InMemorySaver())
+        st.session_state.graph = build_graph(
+            checkpointer=build_checkpointer(get_settings())
+        )
     if "context" not in st.session_state:
         st.session_state.context = AgentContext(store=JsonStore(get_settings()))
     if "thread_id" not in st.session_state:

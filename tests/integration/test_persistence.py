@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
@@ -51,3 +52,13 @@ def test_sqlite_checkpoints_survive_a_new_graph(
 
     assert db_path.exists()
     assert [m.content for m in messages] == ["hi", "hello there"]
+
+
+def test_empty_checkpoint_db_env_means_in_memory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CHECKPOINT_DB", "")
+
+    settings = AppSettings(_env_file=None)  # pyright: ignore[reportCallIssue]
+
+    assert settings.checkpoint_db is None
