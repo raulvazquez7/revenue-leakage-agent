@@ -297,8 +297,8 @@ handler can't be built, it logs a warning and also runs untraced.
 The handler is merged into the node's inherited run config
 (`merge_configs(ensure_config(), ...)`) instead of replacing it. Replacing it
 would detach the model call from the graph run, and LangGraph's `messages`
-stream mode would stop seeing tokens. Tests force the Langfuse variables empty
-so they never send traces.
+stream mode would stop seeing tokens. Tests ignore `.env` and unset every
+settings variable (Langfuse keys included), so they never send traces.
 
 ## Error handling
 

@@ -28,7 +28,10 @@ state schema, tools, approval flow and persistence.
 - Keep prompts in `src/revenue_leakage_agent/prompts/`; keep runtime state out of static prompts.
 - Pass dependencies through `AgentContext` (runtime context), not globals.
 - Prefer small, typed, pure functions; Pyright runs in strict mode.
-- Tests use scripted models and assert on state, never on model wording.
+- Tests use scripted models and assert on state, never on model wording. They
+  run on code-default settings: `tests/conftest.py` ignores `.env`.
+- The agent runs one tool call per step (only `messages` has a reducer), so a
+  tool may write state keys without coordinating with other tools.
 
 ## Commands
 
