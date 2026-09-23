@@ -6,14 +6,13 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage
-from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
 from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.history import recent_history
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
-from revenue_leakage_agent.tracing import get_langfuse_callbacks
+from revenue_leakage_agent.tracing import model_call_config
 
 
 def make_agent_node(
@@ -27,7 +26,7 @@ def make_agent_node(
 
     def agent_node(state: AgentState) -> dict[str, object]:
         settings = get_settings()
-        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(settings)}
+        config = model_call_config(settings)
         response = llm.invoke(
             [
                 SystemMessage(content=prompt),
