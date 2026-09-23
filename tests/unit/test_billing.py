@@ -172,6 +172,32 @@ def test_leap_day_annual_start_returns_to_feb_29_in_leap_years() -> None:
     assert comparison["findings"] == []
 
 
+def test_one_credit_memo_cannot_correct_two_overbilled_periods() -> None:
+    """A memo covers only the period holding the invoice it references."""
+
+    plan = _plan("SUB-OVER", Decimal("40000"), "Quarterly")
+    invoices = [
+        _invoice("INV-Q1", "SUB-OVER", "2025-01-10", Decimal("11200")),
+        _invoice("INV-Q2", "SUB-OVER", "2025-04-10", Decimal("11200")),
+    ]
+    memo = CreditMemo(
+        memo_id="MEMO-Q1",
+        plan_id="SUB-OVER",
+        invoice_id="INV-Q1",
+        amount=Decimal("1200"),
+        currency="USD",
+        issue_date=date(2025, 1, 20),
+        reason="Q1 overbilling",
+    )
+
+    findings = _compare(plan, invoices, credit_memos=[memo])["findings"]
+
+    assert [(f["invoice_ids"], f["status"]) for f in findings] == [
+        (["INV-Q1"], "already_corrected"),
+        (["INV-Q2"], "overbilled"),
+    ]
+
+
 def test_converts_fx_with_documented_rounding_policy() -> None:
     result = convert_amount(
         amount=Decimal("22500"),

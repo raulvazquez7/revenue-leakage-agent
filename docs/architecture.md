@@ -137,7 +137,8 @@ from:
 4. Each period gets a status: `ok`, `missing_invoice` (only for empty periods
    between the first and last billed period), `underbilling` or `overbilling`.
 5. Non-`ok` periods become `Finding`s. Overbilling that existing credit memos
-   (converted if needed) fully cover becomes `already_corrected` with
+   on that period's invoices (converted if needed) fully cover becomes
+   `already_corrected` with
    `recommended_action="none"`. A mismatch with FX involved is typed
    `fx_mismatch`.
 

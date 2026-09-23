@@ -399,13 +399,18 @@ def _credit_memo_coverage(
     overbilled: Decimal,
     exchange_rates: list[ExchangeRate],
 ) -> str | None:
-    """Return an evidence string when existing credit memos cover the overbilling."""
+    """Return an evidence string when existing credit memos cover the overbilling.
+
+    A memo counts only for the period holding the invoice it references, so
+    one memo can't correct several overbilled periods of the same plan.
+    ``CreditMemo.invoice_id`` is required, so there are no plan-level memos.
+    """
 
     invoice_id_set = set(invoice_ids)
     total_credit = Decimal("0")
     matched: list[str] = []
     for memo in credit_memos:
-        if memo.invoice_id not in invoice_id_set and memo.plan_id != plan.plan_id:
+        if memo.invoice_id not in invoice_id_set:
             continue
         if memo.currency == plan.currency:
             amount = _money(memo.amount)
