@@ -200,14 +200,15 @@ uv run task test      # pytest: unit + integration, no API key or network needed
 uv run task eval      # live-model trajectory evals (needs OPENAI_API_KEY, costs a few cents)
 ```
 
-- **Unit tests** cover the billing math, store, tools, history trimming,
-  prompts, streaming helpers, tracing config and Studio compatibility.
+- **Unit tests** cover the billing math, store, tools and their schemas,
+  history trimming, prompts, streaming helpers, the CLI, settings isolation,
+  tracing config and Studio compatibility.
 - **Integration tests** run the compiled graph with `ScriptedChatModel`: the
-  investigation loop, approve / reject / rollback / double-apply, token
-  streaming, SQLite checkpoints surviving a new graph, the HTTP API end to end,
+  investigation loop, approve / reject / rollback / double-apply, parallel tool
+  calls, token streaming, SQLite checkpoints surviving a new graph, the HTTP API end to end,
   and the golden dataset.
 - **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs format, lint, pyright and
-  pytest (coverage floor 60%) on Python 3.11, 3.12 and 3.13.
+  pytest (coverage floor 70%) on Python 3.11, 3.12 and 3.13.
 - **Evals** are 9 scenarios (routing, each dataset finding, approve/reject
   writes, no write without approval). Scenarios and recorded results are in
   [`evals/README.md`](evals/README.md).
