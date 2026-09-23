@@ -45,12 +45,12 @@ htmlcov/
 
 # Generated sandbox output
 sandbox/
+logs/
+*.log
 
 # LangGraph dev server state and local checkpoints
 .langgraph_api/
 .data/
-logs/
-*.log
 
 # Agent/local assistant artifacts
 .agent/
