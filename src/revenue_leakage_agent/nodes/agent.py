@@ -22,7 +22,9 @@ def make_agent_node(
     """Build the investigator node with ``tools`` bound to ``model``."""
 
     prompt = load_prompt("agent")
-    llm = model.bind_tools(tools)
+    # One tool call per step: non-message state keys have no reducers, so two
+    # state-writing calls in one step would conflict (see graph's ToolNode guard).
+    llm = model.bind_tools(tools, parallel_tool_calls=False)
 
     def agent_node(state: AgentState) -> dict[str, object]:
         settings = get_settings()

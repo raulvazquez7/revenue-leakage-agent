@@ -97,7 +97,8 @@ persistence) is in [`docs/architecture.md`](docs/architecture.md).
 | HITL via `interrupt()` inside the tool | The approval gate sits next to the write it protects, so no prompt or routing mistake can skip it. Rejections are recorded in state; approvals also go to an audit log. |
 | Runtime context for dependencies | `AgentContext(store=...)` is passed per run. Tools call `resolve_store(runtime.context)`, which falls back to a default store so Studio can run with an empty context. |
 | Prompts as package data | `prompts/*.md` load via `importlib.resources` and fail loudly if missing or empty. Runtime state goes in a separate system message, so the static prompt stays stable. |
-| Bounded history | `trim_messages` keeps the last N messages starting on a `HumanMessage` (no orphaned `ToolMessage`s). The router and conversational nodes only see human/assistant dialogue, without tool traffic. |
+| Bounded history | `trim_messages` keeps the last N messages starting on a `HumanMessage` (no orphaned `ToolMessage`s), after dropping tool calls left unanswered by an abandoned turn. The router and conversational nodes only see human/assistant dialogue, without tool traffic. |
+| One tool call per step | State keys other than `messages` take one write per step, so tools are bound with `parallel_tool_calls=False` and the tools node runs only the first call if a model sends several (the rest get an error result to retry). Simpler than merging concurrent state writes. |
 | Tests vs. evals | `tests/` is deterministic and runs in CI: it checks state, ledgers and interrupts, never wording. `evals/` accepts non-determinism and a small cost to check that real models take the right path. |
 
 ## Quickstart

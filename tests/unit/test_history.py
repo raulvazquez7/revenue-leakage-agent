@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -37,7 +38,7 @@ def _tool_turn(n: int) -> list[AnyMessage]:
     ]
 
 
-def _assert_no_orphan_tool_messages(messages: list[AnyMessage]) -> None:
+def _assert_no_orphan_tool_messages(messages: Sequence[BaseMessage]) -> None:
     seen_call_ids: set[str] = set()
     for message in messages:
         if isinstance(message, AIMessage):
@@ -167,3 +168,71 @@ def test_router_node_sees_dialogue_not_tool_traffic(
         "found X, want me to draft?",
         "yes do it",
     ]
+
+
+def test_recent_history_drops_ai_message_with_unanswered_tool_calls() -> None:
+    """An abandoned turn (e.g. a UI rerun mid-stream) must not reach the model."""
+
+    dangling = AIMessage(
+        content="",
+        tool_calls=[{"name": "load_plan", "args": {}, "id": "call-dangling"}],
+    )
+    history = [
+        HumanMessage(content="first"),
+        dangling,
+        HumanMessage(content="try again"),
+    ]
+
+    result = recent_history(history, 40)
+
+    assert result == [history[0], history[2]]
+
+
+def test_recent_history_drops_partially_answered_tool_calls() -> None:
+    partial = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "load_plan", "args": {}, "id": "call-a"},
+            {"name": "load_plan", "args": {}, "id": "call-b"},
+        ],
+    )
+    history = [
+        HumanMessage(content="first"),
+        partial,
+        ToolMessage(content="{}", tool_call_id="call-a"),
+        HumanMessage(content="again"),
+    ]
+
+    result = recent_history(history, 40)
+
+    assert result == [history[0], history[3]]
+
+
+def test_recent_history_drops_orphan_tool_messages() -> None:
+    orphan = ToolMessage(content="{}", tool_call_id="call-missing-parent")
+    history = [HumanMessage(content="hi"), orphan, AIMessage(content="hello")]
+
+    result = recent_history(history, 40)
+
+    assert result == [history[0], history[2]]
+
+
+def test_agent_node_never_sends_dangling_tool_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = AppSettings(agent_history_messages=40)
+    monkeypatch.setattr(agent_module, "get_settings", lambda: settings)
+    model = _RecordingModel(messages=iter([AIMessage(content="ok")]))
+    node = make_agent_node(model, [])
+    dangling = AIMessage(
+        content="",
+        tool_calls=[{"name": "apply", "args": {}, "id": "call-interrupted"}],
+    )
+    history = [*_tool_turn(1), HumanMessage(content="x"), dangling]
+    history.append(HumanMessage(content="next"))
+
+    node({"messages": history})
+
+    sent = [m for m in model.seen[0] if not isinstance(m, SystemMessage)]
+    assert dangling not in sent
+    _assert_no_orphan_tool_messages(sent)

@@ -55,7 +55,11 @@ its own.
 
 `AgentState` (`state.py`) is a `TypedDict` with `total=False`. Only `messages`
 has a reducer (`add_messages`); every other key is replaced by whoever writes
-it.
+it. A key without a reducer accepts one write per step, so the agent runs one
+tool call per step: tools are bound with `parallel_tool_calls=False`, and the
+`tools` node runs only the first call of an AIMessage that carries several,
+answering the rest with a `PARALLEL_TOOL_CALL` error `ToolMessage` so the model
+can retry them one at a time.
 
 | Key | Type | Written by | Read by |
 |---|---|---|---|
@@ -80,8 +84,8 @@ message, right after the static prompt.
 |---|---|---|
 | `router` | `gpt-5.4-mini` with `with_structured_output(RouteDecision, method="json_schema", strict=True)` | Classifies the turn as `conversation` or `investigation` (with an `intent` and `reason`) and optionally writes a `resolved_question` for implicit follow-ups ("and the other months?"). Sees the active scope and the recent dialogue only. |
 | `conversation` | `gpt-5.4-mini` | Greetings, capability questions, general concepts, out-of-scope redirects. No tools. |
-| `agent` | `gpt-5.4-2026-03-05` with the 8 tools bound | The investigator. Loops with `tools` until it answers without tool calls (`tools_condition` → `END`). |
-| `tools` | none | `ToolNode(tools, handle_tool_errors=True)`. |
+| `agent` | `gpt-5.4-2026-03-05` with the 8 tools bound (`parallel_tool_calls=False`) | The investigator. Loops with `tools` until it answers without tool calls (`tools_condition` → `END`). |
+| `tools` | none | `build_tool_node()`: a `ToolNode` that turns tool exceptions into error `ToolMessage`s (approval interrupts still propagate) and runs one tool call per step. |
 
 Model names, reasoning effort and timeouts are per node and come from `.env`
 (see `config.py`). The agent turn is bounded by LangGraph's default
@@ -245,7 +249,10 @@ counts messages, not tokens:
 - `recent_history(messages, AGENT_HISTORY_MESSAGES=40)` for the agent: the last
   N messages starting on a `HumanMessage`, so a `ToolMessage` is never separated
   from the `AIMessage` that called it. If the current turn alone is longer than
-  N, the whole turn is kept.
+  N, the whole turn is kept. Before trimming it drops any `AIMessage` whose
+  tool calls were never all answered, plus any `ToolMessage` without its
+  parent, so an abandoned turn (a UI rerun mid-stream, a new message sent
+  instead of resuming an approval) can't make the provider reject later turns.
 - `dialogue_history(messages, ROUTER_HISTORY_MESSAGES=12)` for the router and
   conversational nodes: only human messages and assistant messages with text
   and no tool calls, then the same trimming.
@@ -294,7 +301,7 @@ so they never send traces.
   with `error_code`, `message`, `recoverable` and an `llm_instruction` the
   prompt tells the model to follow. They also set `last_error`.
 - **Unexpected exceptions** inside a tool (for example a missing FX rate, or an
-  unsupported currency filter) are caught by `ToolNode(handle_tool_errors=True)`
+  unsupported currency filter) are caught by the `tools` node (`build_tool_node()`)
   and returned to the model as an error `ToolMessage`, so the turn still ends
   with a reply.
 - **Setup errors**: without `OPENAI_API_KEY`, `build_default_models()` raises a

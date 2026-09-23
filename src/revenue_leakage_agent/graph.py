@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any, cast
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.constants import END, START
-from langgraph.graph import StateGraph
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt import tools_condition
 
 from revenue_leakage_agent.context import AgentContext
 from revenue_leakage_agent.llm import AgentModels, build_default_models
@@ -17,7 +16,7 @@ from revenue_leakage_agent.nodes import (
     route_from_decision,
 )
 from revenue_leakage_agent.state import AgentState
-from revenue_leakage_agent.tools import get_tools
+from revenue_leakage_agent.tools import build_tool_node, get_tools
 
 AgentGraph = CompiledStateGraph[AgentState, AgentContext, AgentState, AgentState]
 
@@ -43,7 +42,7 @@ def build_graph(
     builder.add_node("router", make_router_node(models.router))
     builder.add_node("conversation", make_conversational_node(models.conversational))
     builder.add_node("agent", make_agent_node(models.agent, tools))
-    builder.add_node("tools", ToolNode(tools, handle_tool_errors=True))
+    builder.add_node("tools", build_tool_node(tools))
 
     builder.add_edge(START, "router")
     builder.add_conditional_edges(

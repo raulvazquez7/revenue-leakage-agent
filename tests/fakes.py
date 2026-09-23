@@ -27,10 +27,20 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_core.messages.tool import tool_call_chunk
 from langchain_core.outputs import ChatGenerationChunk
+from pydantic import Field
 
 
 class ScriptedChatModel(GenericFakeChatModel):
-    """Fake chat model that returns scripted AIMessages and supports bind_tools."""
+    """Fake chat model that returns scripted AIMessages and supports bind_tools.
+
+    ``bind_tools`` keyword arguments (e.g. ``parallel_tool_calls``) are ignored
+    for behaviour but recorded in ``bind_tools_kwargs`` so tests can assert
+    what a node asked the provider for.
+    """
+
+    bind_tools_kwargs: list[dict[str, Any]] = Field(
+        default_factory=lambda: list[dict[str, Any]]()
+    )
 
     def bind_tools(
         self,
@@ -39,6 +49,7 @@ class ScriptedChatModel(GenericFakeChatModel):
         tool_choice: Any = None,
         **kwargs: Any,
     ) -> ScriptedChatModel:
+        self.bind_tools_kwargs.append({"tool_choice": tool_choice, **kwargs})
         return self
 
     def _stream(

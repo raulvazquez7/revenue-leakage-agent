@@ -7,8 +7,8 @@ import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.constants import END, START
+from langgraph.errors import GraphInterrupt
 from langgraph.graph import StateGraph
-from langgraph.prebuilt import ToolNode
 from langgraph.types import Command
 
 from revenue_leakage_agent.context import AgentContext, resolve_store
@@ -16,7 +16,8 @@ from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.store import JsonStore
 from revenue_leakage_agent.tools import (
     _is_approved,  # pyright: ignore[reportPrivateUsage]
-    get_tools,
+    build_tool_node,
+    tool_error_message,
 )
 
 TEST_PLAN = {
@@ -39,7 +40,7 @@ def _seed_plan(store: JsonStore) -> None:
 
 def _tool_graph(checkpointer: InMemorySaver | None = None) -> Any:
     builder: Any = StateGraph(AgentState, context_schema=AgentContext)
-    builder.add_node("tools", ToolNode(get_tools(), handle_tool_errors=True))
+    builder.add_node("tools", build_tool_node())
     builder.add_edge(START, "tools")
     builder.add_edge("tools", END)
     return builder.compile(checkpointer=checkpointer)
@@ -158,8 +159,8 @@ def test_load_plan_normalizes_whitespace_and_case(store: JsonStore) -> None:
 def test_fx_convert_missing_rate_reports_error_and_completes_turn(
     seeded_store: JsonStore,
 ) -> None:
-    """Review Focus 2: ToolNode(handle_tool_errors=True) turns the raised
-    ValueError into an error ToolMessage instead of failing the graph run."""
+    """The graph's ToolNode turns the raised ValueError into an error
+    ToolMessage instead of failing the graph run."""
 
     result = _run_tool(
         seeded_store,
@@ -192,3 +193,9 @@ def test_is_approved_true_cases(decision: Any) -> None:
 )
 def test_is_approved_false_cases(decision: Any) -> None:
     assert _is_approved(decision) is False
+
+
+def test_tool_error_message_formats_errors_but_lets_interrupts_propagate() -> None:
+    assert "boom" in tool_error_message(ValueError("boom"))
+    with pytest.raises(GraphInterrupt):
+        tool_error_message(GraphInterrupt())
