@@ -31,6 +31,21 @@ def _json_default(value: Any) -> str:
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
+def _next_id(prefix: str, records: list[dict[str, Any]], key: str) -> str:
+    """``prefix`` + (highest existing numeric suffix + 1), zero-padded to 4.
+
+    Counting records instead would hand out a live ID again after a rollback
+    removed an earlier record.
+    """
+
+    highest = 0
+    for record in records:
+        suffix = str(record.get(key, "")).removeprefix(prefix)
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
+    return f"{prefix}{highest + 1:04d}"
+
+
 class JsonStore:
     """Small JSON adapter around the read-only dataset and sandbox ledgers."""
 
@@ -90,7 +105,7 @@ class JsonStore:
         path = self._ledger_path("make_good_invoice")
         records = self._read_json_list(path)
         record = {
-            "invoice_id": f"INV-MG-{len(records) + 1:04d}",
+            "invoice_id": _next_id("INV-MG-", records, "invoice_id"),
             "source_action_id": draft["action_id"],
             "plan_id": draft["plan_id"],
             "invoice_date": datetime.now(UTC).date().isoformat(),
@@ -108,7 +123,7 @@ class JsonStore:
         path = self._ledger_path("credit_memo")
         records = self._read_json_list(path)
         record = {
-            "memo_id": f"CM-{len(records) + 1:04d}",
+            "memo_id": _next_id("CM-", records, "memo_id"),
             "source_action_id": draft["action_id"],
             "invoice_id": draft["invoice_id"],
             "plan_id": draft.get("plan_id", ""),
@@ -127,7 +142,7 @@ class JsonStore:
         path = self._ledger_path("plan_amendment")
         records = self._read_json_list(path)
         record = {
-            "amendment_id": f"AMD-{len(records) + 1:04d}",
+            "amendment_id": _next_id("AMD-", records, "amendment_id"),
             "source_action_id": draft["action_id"],
             "plan_id": draft["plan_id"],
             "effective_date": datetime.now(UTC).date().isoformat(),
@@ -164,7 +179,7 @@ class JsonStore:
         path = self.sandbox_dir / AUDIT_LOG
         records = self._read_json_list(path)
         audit_entry = {
-            "audit_id": f"AUD-{len(records) + 1:04d}",
+            "audit_id": _next_id("AUD-", records, "audit_id"),
             "created_at": datetime.now(UTC).isoformat(),
             **entry,
         }
