@@ -13,15 +13,14 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
-from agents.billing_analysis import (
+from revenue_leakage_agent.domain.billing import (
     apply_invoice_filters,
     compare_plan_to_invoices,
     convert_amount,
     related_credit_memos,
     summarize_invoices,
 )
-from agents.json_store import JsonStore
-from agents.schemas import (
+from revenue_leakage_agent.domain.models import (
     ACTION_DRAFT_ADAPTER,
     CreditMemoDraft,
     Currency,
@@ -30,7 +29,8 @@ from agents.schemas import (
     PlanAmendmentDraft,
     ToolError,
 )
-from agents.state import AgentState
+from revenue_leakage_agent.state import AgentState
+from revenue_leakage_agent.store import JsonStore
 
 
 class LoadPlanInput(BaseModel):

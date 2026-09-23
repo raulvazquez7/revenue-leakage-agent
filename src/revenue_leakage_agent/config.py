@@ -117,7 +117,9 @@ class AppSettings(BaseSettings):
         default=Path("sandbox"),
         description="Writable sandbox ledgers.",
     )
-    prompts_dir: Path = Field(default=Path("prompts"), description="Prompt directory.")
+    prompts_dir: Path = Field(
+        default=Path(__file__).parent / "prompts", description="Prompt directory."
+    )
     router_prompt_name: str = Field(
         default="router",
         description="Router prompt filename without .md extension.",

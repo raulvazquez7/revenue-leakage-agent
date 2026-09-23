@@ -1,27 +1,22 @@
 from __future__ import annotations
 
 import json
-import sys
 import warnings
 from collections.abc import Iterable
-from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.types import Command
+
+from revenue_leakage_agent.graph import build_graph
+from revenue_leakage_agent.messages import extract_ai_text
 
 warnings.filterwarnings(
     "ignore",
     message="Pydantic serializer warnings",
     category=UserWarning,
 )
-
-ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from agents.graph import build_graph  # noqa: E402
-from agents.messages import extract_ai_text  # noqa: E402
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage  # noqa: E402
-from langgraph.types import Command  # noqa: E402
 
 
 def main() -> None:

@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
-from settings import AppSettings, get_settings
 
-from agents.schemas import CreditMemo, ExchangeRate, Invoice, Plan
+from revenue_leakage_agent.config import AppSettings, get_settings
+from revenue_leakage_agent.domain.models import CreditMemo, ExchangeRate, Invoice, Plan
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 

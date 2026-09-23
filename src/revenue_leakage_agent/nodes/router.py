@@ -6,13 +6,12 @@ from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
-from settings import get_settings
-from settings.config import build_chat_openai_kwargs
-from settings.tracing import get_langfuse_callbacks
 
-from agents.prompts import load_prompt
-from agents.schemas import InvestigationScope, RouteDecision
-from agents.state import AgentState
+from revenue_leakage_agent.config import build_chat_openai_kwargs, get_settings
+from revenue_leakage_agent.domain.models import InvestigationScope, RouteDecision
+from revenue_leakage_agent.prompts import load_prompt
+from revenue_leakage_agent.state import AgentState
+from revenue_leakage_agent.tracing import get_langfuse_callbacks
 
 FALLBACK_ROUTER_PROMPT = """You route a revenue leakage assistant turn.
 

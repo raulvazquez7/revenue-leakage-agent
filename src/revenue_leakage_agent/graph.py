@@ -7,14 +7,14 @@ from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from agents.nodes import (
+from revenue_leakage_agent.nodes import (
     agent_node,
     conversational_node,
     route_from_decision,
     router_node,
 )
-from agents.state import AgentState
-from agents.tools import get_tools
+from revenue_leakage_agent.state import AgentState
+from revenue_leakage_agent.tools import get_tools
 
 
 def build_graph() -> Any:

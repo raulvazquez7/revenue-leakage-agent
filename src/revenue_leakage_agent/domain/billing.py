@@ -18,7 +18,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from agents.schemas import (
+from revenue_leakage_agent.domain.models import (
     CreditMemo,
     ExchangeRate,
     Finding,

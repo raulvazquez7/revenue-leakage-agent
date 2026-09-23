@@ -14,7 +14,7 @@ approval. See `README.md` for the architecture.
 - Money, dates, IDs, FX conversion and sandbox writes are deterministic Python.
   The LLM routes, selects tools and explains; it never produces financial facts.
 - Every sandbox mutation must go through a LangGraph `interrupt()` approval.
-- Keep prompts in `prompts/`; keep runtime state out of static prompts.
+- Keep prompts in `src/revenue_leakage_agent/prompts/`; keep runtime state out of static prompts.
 - Prefer small, typed, pure functions; Pyright runs in strict mode.
 
 ## Commands
