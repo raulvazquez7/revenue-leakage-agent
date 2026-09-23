@@ -19,7 +19,7 @@ This folder contains runtime prompt assets for the Revenue Leakage Agent. The pr
   - last error
 - Do not inject raw datasets or long invoice lists into the system prompt.
 - Prefer just-in-time retrieval through tools.
-- Preserve raw tool results only long enough to reason in the current turn; keep compact findings and action state for follow-ups.
+- The agent sees up to `AGENT_HISTORY_MESSAGES` (default 40) recent messages, including earlier tool results, trimmed to start on a human message; the compact findings and action state in the injected graph state carry follow-ups beyond that window.
 - Use a few canonical examples instead of a long edge-case catalog.
 
 ## Runtime Loading
@@ -28,7 +28,7 @@ At runtime, each node loads the relevant Markdown file as its system prompt:
 
 - Router node: `router.md` plus compact active scope and the recent human/assistant dialogue (tool traffic is filtered out).
 - Conversational node: `conversational.md` plus the router's decision and the recent human/assistant dialogue.
-- Agent node: `agent.md` plus compact graph state and tool bindings.
+- Agent node: `agent.md` plus compact graph state, the recent message history (tool traffic included) and tool bindings.
 
 `load_prompt(name)` in `src/revenue_leakage_agent/prompts/__init__.py` reads these
 files as package data via `importlib.resources` and raises `FileNotFoundError`

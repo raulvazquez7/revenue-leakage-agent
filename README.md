@@ -237,7 +237,7 @@ src/revenue_leakage_agent/
 tests/                   # unit/ and integration/, scripted fakes in fakes.py
 evals/                   # live-model trajectory scenarios
 data/                    # synthetic read-only dataset
-docs/                    # architecture notes and screenshot
+docs/                    # architecture notes and screenshots
 ```
 
 ## Limitations
