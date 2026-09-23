@@ -5,7 +5,7 @@ import unicodedata
 from collections.abc import Callable, Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Any, cast
+from typing import Annotated, Any, cast
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, ToolMessage
@@ -14,7 +14,7 @@ from langgraph.errors import GraphBubbleUp
 from langgraph.prebuilt import ToolNode, ToolRuntime
 from langgraph.prebuilt.tool_node import TOOL_CALL_ERROR_TEMPLATE, ToolCallRequest
 from langgraph.types import Command, interrupt
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from revenue_leakage_agent.context import AgentContext, resolve_store
 from revenue_leakage_agent.domain.billing import (
@@ -36,55 +36,17 @@ from revenue_leakage_agent.domain.models import (
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.store import JsonStore
 
-
-class LoadPlanInput(BaseModel):
-    plan_id: str = Field(description="Billing plan ID, for example SUB-2001.")
-
-
-class FxConvertInput(BaseModel):
-    amount: Decimal = Field(gt=0, description="Amount to convert.")
-    from_ccy: str = Field(description="Source currency code.")
-    to_ccy: str = Field(description="Target currency code.")
-    on_date: date = Field(description="FX date in YYYY-MM-DD format.")
-
-
-class ProposeMakeGoodInvoiceInput(BaseModel):
-    plan_id: str = Field(description="Billing plan ID.")
-    amount: Decimal = Field(gt=0, description="Revenue amount to recover.")
-    reason: str = Field(min_length=1, description="Business reason for the invoice.")
-
-
-class ProposeCreditMemoInput(BaseModel):
-    invoice_id: str = Field(description="Invoice ID that was overbilled.")
-    amount: Decimal = Field(gt=0, description="Amount to credit back.")
-    reason: str = Field(min_length=1, description="Business reason for the credit.")
-
-
-class ProposePlanAmendmentInput(BaseModel):
-    plan_id: str = Field(description="Billing plan ID to amend.")
-    change_set: dict[str, Any] = Field(
-        description="Plan fields to change, e.g. {'total_value': 100000}.",
-    )
-    reason: str = Field(min_length=1, description="Business reason for the amendment.")
-
-
-class RollbackInput(BaseModel):
-    action_id: str | None = Field(
-        default=None,
-        description="Applied action ID. Omit to roll back the most recent one.",
-    )
-
-
-class ApplyInput(BaseModel):
-    action_id: str | None = Field(
-        default=None,
-        description="Draft action ID. Omit to apply the current pending action.",
-    )
+# Model-visible argument descriptions. ``runtime`` is injected by ToolNode and
+# never appears in the schema sent to the model.
+PlanId = Annotated[str, Field(description="Billing plan ID, for example SUB-2001.")]
+Reason = Annotated[
+    str, Field(min_length=1, description="Business reason shown to the approver.")
+]
 
 
 @tool
 def load_plan(
-    plan_id: str,
+    plan_id: PlanId,
     runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Load a billing plan by ID and update the active investigation scope."""
@@ -117,13 +79,33 @@ def load_plan(
 @tool
 def query_invoices(
     runtime: ToolRuntime[AgentContext, AgentState],
-    plan_id: str | None = None,
-    customer_name: str | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    status: str | None = None,
-    currency: str | None = None,
-    limit: int = 25,
+    plan_id: Annotated[
+        str | None,
+        Field(
+            description="Billing plan ID, for example SUB-2001. When set, the "
+            "result includes the expected-vs-actual plan comparison."
+        ),
+    ] = None,
+    customer_name: Annotated[
+        str | None, Field(description="Exact customer name, e.g. Bluefin Logistics.")
+    ] = None,
+    start_date: Annotated[
+        date | None,
+        Field(description="Earliest invoice issue_date to include (YYYY-MM-DD)."),
+    ] = None,
+    end_date: Annotated[
+        date | None,
+        Field(description="Latest invoice issue_date to include (YYYY-MM-DD)."),
+    ] = None,
+    status: Annotated[
+        str | None, Field(description="Invoice status, e.g. paid or open.")
+    ] = None,
+    currency: Annotated[
+        str | None, Field(description="Invoice currency: USD, EUR or GBP.")
+    ] = None,
+    limit: Annotated[
+        int, Field(ge=1, le=100, description="Maximum invoices to return.")
+    ] = 25,
 ) -> Command[Any]:
     """Query invoices and include plan comparison when plan_id is provided.
 
@@ -192,10 +174,12 @@ def query_invoices(
 
 @tool
 def fx_convert(
-    amount: Decimal,
-    from_ccy: str,
-    to_ccy: str,
-    on_date: date,
+    amount: Annotated[Decimal, Field(gt=0, description="Amount to convert.")],
+    from_ccy: Annotated[str, Field(description="Source currency code, e.g. EUR.")],
+    to_ccy: Annotated[str, Field(description="Target currency code, e.g. USD.")],
+    on_date: Annotated[
+        date, Field(description="Date of the FX rate to use (YYYY-MM-DD).")
+    ],
     runtime: ToolRuntime[AgentContext, AgentState],
 ) -> dict[str, Any]:
     """Convert an amount using the exchange-rate dataset."""
@@ -211,9 +195,12 @@ def fx_convert(
 
 @tool
 def propose_make_good_invoice(
-    plan_id: str,
-    amount: Decimal,
-    reason: str,
+    plan_id: PlanId,
+    amount: Annotated[
+        Decimal,
+        Field(gt=0, description="Revenue to recover, in the plan currency."),
+    ],
+    reason: Reason,
     runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Create a draft make-good invoice without writing to sandbox ledgers."""
@@ -249,9 +236,14 @@ def propose_make_good_invoice(
 
 @tool
 def propose_credit_memo(
-    invoice_id: str,
-    amount: Decimal,
-    reason: str,
+    invoice_id: Annotated[
+        str, Field(description="Overbilled invoice ID, for example INV-5022.")
+    ],
+    amount: Annotated[
+        Decimal,
+        Field(gt=0, description="Amount to credit back, in the plan currency."),
+    ],
+    reason: Reason,
     runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Create a draft credit memo to correct overbilling on a specific invoice.
@@ -295,9 +287,12 @@ def propose_credit_memo(
 
 @tool
 def propose_plan_amendment(
-    plan_id: str,
-    change_set: dict[str, Any],
-    reason: str,
+    plan_id: PlanId,
+    change_set: Annotated[
+        dict[str, Any],
+        Field(description='Plan fields to change, e.g. {"total_value": 96000}.'),
+    ],
+    reason: Reason,
     runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Create a draft plan amendment when the plan no longer matches the deal.
@@ -347,7 +342,10 @@ def propose_plan_amendment(
 @tool
 def apply(
     runtime: ToolRuntime[AgentContext, AgentState],
-    action_id: str | None = None,
+    action_id: Annotated[
+        str | None,
+        Field(description="Draft action ID. Omit to apply the current pending draft."),
+    ] = None,
 ) -> Command[Any]:
     """Apply the pending action only after a human approval interrupt."""
 
@@ -442,7 +440,10 @@ def apply(
 @tool
 def rollback(
     runtime: ToolRuntime[AgentContext, AgentState],
-    action_id: str | None = None,
+    action_id: Annotated[
+        str | None,
+        Field(description="Applied action ID. Omit to roll back the most recent one."),
+    ] = None,
 ) -> Command[Any]:
     """Undo an applied sandbox action after a human approval interrupt.
 

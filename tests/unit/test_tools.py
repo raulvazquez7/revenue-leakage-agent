@@ -17,6 +17,7 @@ from revenue_leakage_agent.store import JsonStore
 from revenue_leakage_agent.tools import (
     _is_approved,  # pyright: ignore[reportPrivateUsage]
     build_tool_node,
+    get_tools,
     tool_error_message,
 )
 
@@ -199,3 +200,14 @@ def test_tool_error_message_formats_errors_but_lets_interrupts_propagate() -> No
     assert "boom" in tool_error_message(ValueError("boom"))
     with pytest.raises(GraphInterrupt):
         tool_error_message(GraphInterrupt())
+
+
+@pytest.mark.parametrize("tool", get_tools(), ids=lambda tool: tool.name)
+def test_model_visible_args_are_described_and_runtime_is_hidden(tool: Any) -> None:
+    schema = tool.tool_call_schema.model_json_schema()
+    properties: dict[str, Any] = schema["properties"]
+
+    assert "runtime" not in properties
+    assert properties, tool.name
+    for name, prop in properties.items():
+        assert prop.get("description"), f"{tool.name}.{name} has no description"
