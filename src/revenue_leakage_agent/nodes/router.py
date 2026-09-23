@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 
 from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.domain.models import InvestigationScope, RouteDecision
-from revenue_leakage_agent.history import recent_history
+from revenue_leakage_agent.history import dialogue_history
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
@@ -32,7 +32,7 @@ def make_router_node(model: BaseChatModel) -> Callable[[AgentState], dict[str, o
             [
                 SystemMessage(content=prompt),
                 SystemMessage(content=f"Active scope: {state.get('active_scope')}"),
-                *recent_history(
+                *dialogue_history(
                     state.get("messages", []), settings.router_history_messages
                 ),
             ],

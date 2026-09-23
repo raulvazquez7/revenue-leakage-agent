@@ -7,7 +7,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from revenue_leakage_agent.config import get_settings
-from revenue_leakage_agent.history import recent_history
+from revenue_leakage_agent.history import dialogue_history
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
@@ -27,7 +27,7 @@ def make_conversational_node(
             [
                 SystemMessage(content=prompt),
                 SystemMessage(content=f"Route decision: {state.get('route_decision')}"),
-                *recent_history(
+                *dialogue_history(
                     state.get("messages", []), settings.router_history_messages
                 ),
             ],
