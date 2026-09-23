@@ -32,10 +32,11 @@ def _json_default(value: Any) -> str:
 
 
 def _next_id(prefix: str, records: list[dict[str, Any]], key: str) -> str:
-    """``prefix`` + (highest existing numeric suffix + 1), zero-padded to 4.
+    """``prefix`` + (highest numeric suffix in ``records`` + 1), zero-padded to 4.
 
-    Counting records instead would hand out a live ID again after a rollback
-    removed an earlier record.
+    Ledger callers pass the live records plus every record the audit log saw
+    (see ``JsonStore._issued_records``), so an ID is never handed out twice,
+    even after the newest record was rolled back.
     """
 
     highest = 0
@@ -105,7 +106,9 @@ class JsonStore:
         path = self._ledger_path("make_good_invoice")
         records = self._read_json_list(path)
         record = {
-            "invoice_id": _next_id("INV-MG-", records, "invoice_id"),
+            "invoice_id": _next_id(
+                "INV-MG-", self._issued_records(records), "invoice_id"
+            ),
             "source_action_id": draft["action_id"],
             "plan_id": draft["plan_id"],
             "invoice_date": datetime.now(UTC).date().isoformat(),
@@ -123,7 +126,7 @@ class JsonStore:
         path = self._ledger_path("credit_memo")
         records = self._read_json_list(path)
         record = {
-            "memo_id": _next_id("CM-", records, "memo_id"),
+            "memo_id": _next_id("CM-", self._issued_records(records), "memo_id"),
             "source_action_id": draft["action_id"],
             "invoice_id": draft["invoice_id"],
             "plan_id": draft.get("plan_id", ""),
@@ -142,7 +145,9 @@ class JsonStore:
         path = self._ledger_path("plan_amendment")
         records = self._read_json_list(path)
         record = {
-            "amendment_id": _next_id("AMD-", records, "amendment_id"),
+            "amendment_id": _next_id(
+                "AMD-", self._issued_records(records), "amendment_id"
+            ),
             "source_action_id": draft["action_id"],
             "plan_id": draft["plan_id"],
             "effective_date": datetime.now(UTC).date().isoformat(),
@@ -206,6 +211,22 @@ class JsonStore:
                 path.unlink()
                 removed.append(path)
         return removed
+
+    def _issued_records(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Live ledger ``records`` plus every sandbox record in the audit log.
+
+        ``apply`` logs each written record and ``rollback`` logs each removed
+        one, so this covers every ID ever issued since the last
+        ``reset_sandbox()`` (which deletes the audit log and restarts numbering).
+        """
+
+        audited: list[dict[str, Any]] = []
+        for entry in self.load_audit_log():
+            for field in ("sandbox_record", "removed_record"):
+                value = entry.get(field)
+                if isinstance(value, dict):
+                    audited.append(cast(dict[str, Any], value))
+        return [*records, *audited]
 
     def _ledger_path(self, action_type: str) -> Path:
         ledger = SANDBOX_LEDGERS.get(action_type)

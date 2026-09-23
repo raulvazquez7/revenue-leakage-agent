@@ -196,3 +196,37 @@ def test_audit_ids_continue_from_highest_existing(store: JsonStore) -> None:
     entry = store.append_audit_log({"event_type": "y"})
 
     assert entry["audit_id"] == "AUD-0006"
+
+
+def _apply(store: JsonStore, action_id: str) -> dict[str, object]:
+    """Append a make-good record and its audit entry, as the apply tool does."""
+
+    record = store.append_make_good_invoice(_make_good(action_id))
+    store.append_audit_log({"event_type": "action_applied", "sandbox_record": record})
+    return record
+
+
+def _rollback(store: JsonStore, action_id: str) -> None:
+    removed = store.remove_sandbox_record("make_good_invoice", action_id)
+    store.append_audit_log(
+        {"event_type": "action_rolled_back", "removed_record": removed}
+    )
+
+
+def test_ledger_ids_are_never_reused_after_rolling_back_the_newest_record(
+    store: JsonStore,
+) -> None:
+    first = _apply(store, "A")
+    _rollback(store, "A")
+
+    second = _apply(store, "B")
+
+    assert first["invoice_id"] == "INV-MG-0001"
+    assert second["invoice_id"] == "INV-MG-0002"
+
+
+def test_reset_sandbox_restarts_ledger_numbering(store: JsonStore) -> None:
+    _apply(store, "A")
+    store.reset_sandbox()
+
+    assert _apply(store, "B")["invoice_id"] == "INV-MG-0001"
