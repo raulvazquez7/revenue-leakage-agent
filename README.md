@@ -30,6 +30,12 @@ docker compose down -v      # stop and drop the sandbox/checkpoint volume
 
 Both services share a named volume for sandbox ledgers and SQLite checkpoints.
 
+## Tracing
+
+[Langfuse](https://langfuse.com) tracing is optional. Set `LANGFUSE_SECRET_KEY`,
+`LANGFUSE_PUBLIC_KEY` and `LANGFUSE_BASE_URL` in `.env` to send traces; leave any
+of them unset and the agent runs untraced.
+
 ## Quality checks
 
 ```bash

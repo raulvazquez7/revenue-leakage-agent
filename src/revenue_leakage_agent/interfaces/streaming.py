@@ -58,6 +58,19 @@ def stream_text(chunk: Any) -> str:
     return message.text
 
 
+def turn_error_message(error: BaseException) -> str:
+    """User-facing text for a turn that raised, naming the exception type.
+
+    Kept pure and separate from the Streamlit call site so it is unit
+    -testable without a Streamlit runtime.
+    """
+
+    return (
+        f"Something went wrong while running the agent: {type(error).__name__}. "
+        "Check the terminal logs."
+    )
+
+
 def interrupt_payload(update: Any) -> dict[str, Any] | None:
     """The first interrupt's value from an ``updates``-mode chunk, if any."""
 
