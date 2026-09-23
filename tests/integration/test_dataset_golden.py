@@ -41,7 +41,6 @@ def test_compare_plan_to_invoices_matches_golden_findings_for_every_plan(
             invoices=invoices,
             exchange_rates=exchange_rates,
             credit_memos=credit_memos,
-            filters=InvoiceFilters(plan_id=plan.plan_id),
         )
         actual = [
             (finding["type"], finding["amount"], finding["status"])

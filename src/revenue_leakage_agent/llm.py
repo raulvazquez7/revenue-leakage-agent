@@ -38,6 +38,10 @@ def build_default_models(settings: AppSettings | None = None) -> AgentModels:
         )
     api_key = SecretStr(settings.openai_api_key)
 
+    # The router's structured output is never shown to the user, so it is not
+    # streamed. Streaming a json_schema structured output also makes
+    # langchain-openai dump the SDK's ParsedChatCompletion, which emits
+    # "Pydantic serializer warnings" on every routed turn.
     router = ChatOpenAI(
         **build_chat_openai_kwargs(
             model=settings.router_model,
@@ -45,7 +49,8 @@ def build_default_models(settings: AppSettings | None = None) -> AgentModels:
             reasoning_effort=settings.router_reasoning_effort,
             reasoning_summary=settings.router_reasoning_summary,
             timeout_seconds=settings.llm_timeout_seconds,
-        )
+        ),
+        disable_streaming=True,
     )
     agent = ChatOpenAI(
         **build_chat_openai_kwargs(

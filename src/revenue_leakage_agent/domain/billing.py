@@ -82,8 +82,13 @@ def compare_plan_to_invoices(
     invoices: list[Invoice],
     exchange_rates: list[ExchangeRate],
     credit_memos: list[CreditMemo],
-    filters: InvoiceFilters,
 ) -> dict[str, Any]:
+    """Compare every invoice of ``plan`` against its expected billing periods.
+
+    The comparison always covers the whole plan: ``query_invoices`` filters
+    only narrow the invoice list it returns, not the periods checked here.
+    """
+
     plan_invoices = [inv for inv in invoices if inv.plan_id == plan.plan_id]
     expected = _money(plan.total_value / PERIODS_PER_YEAR[plan.cadence])
     periods = _expected_periods(plan=plan, invoices=plan_invoices)
@@ -238,12 +243,16 @@ def _expected_periods(
     months = CADENCE_MONTHS[plan.cadence]
     horizon = max(invoice.issue_date for invoice in invoices)
 
+    # Period k starts at start_date + k * months (clamped to month end), so a
+    # Jan-31 start gives Feb-28, Mar-31, Apr-30 rather than drifting to the 28th.
     periods: list[tuple[date, date]] = []
-    cursor = plan.start_date
-    while cursor <= horizon:
-        next_start = _add_months(cursor, months)
-        periods.append((cursor, next_start))
-        cursor = next_start
+    k = 0
+    start = plan.start_date
+    while start <= horizon:
+        next_start = _add_months(plan.start_date, (k + 1) * months)
+        periods.append((start, next_start))
+        k += 1
+        start = next_start
     return periods
 
 
@@ -390,13 +399,18 @@ def _credit_memo_coverage(
     overbilled: Decimal,
     exchange_rates: list[ExchangeRate],
 ) -> str | None:
-    """Return an evidence string when existing credit memos cover the overbilling."""
+    """Return an evidence string when existing credit memos cover the overbilling.
+
+    A memo counts only for the period holding the invoice it references, so
+    one memo can't correct several overbilled periods of the same plan.
+    ``CreditMemo.invoice_id`` is required, so there are no plan-level memos.
+    """
 
     invoice_id_set = set(invoice_ids)
     total_credit = Decimal("0")
     matched: list[str] = []
     for memo in credit_memos:
-        if memo.invoice_id not in invoice_id_set and memo.plan_id != plan.plan_id:
+        if memo.invoice_id not in invoice_id_set:
             continue
         if memo.currency == plan.currency:
             amount = _money(memo.amount)

@@ -261,3 +261,42 @@ def test_double_apply_is_rejected_without_a_second_interrupt(
 
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
     assert len(ledger) == 1
+
+
+def test_parallel_tool_calls_run_one_and_leave_the_thread_readable(
+    seeded_store: JsonStore,
+) -> None:
+    """A model that ignores ``parallel_tool_calls=False`` must not break a thread.
+
+    Two ``load_plan`` calls in one AIMessage would both write ``active_scope``
+    in the same step (``InvalidUpdateError``) and leave pending writes that make
+    ``get_state`` raise for the thread. Only the first call runs; the rest are
+    answered with an error so every tool call still has a ToolMessage.
+    """
+
+    router = scripted(route("investigation", "investigation"))
+    parallel = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "load_plan", "args": {"plan_id": "SUB-2001"}, "id": "tc-a"},
+            {"name": "load_plan", "args": {"plan_id": "SUB-2020"}, "id": "tc-b"},
+        ],
+    )
+    agent = scripted(parallel, AIMessage(content="done"))
+    graph = _graph(router, agent)
+
+    result = run(
+        graph,
+        THREAD,
+        seeded_store,
+        {"messages": [HumanMessage(content="compare both plans")]},
+    )
+
+    assert result["active_scope"]["plan_id"] == "SUB-2001"
+    by_id = {m.tool_call_id: m for m in _tool_messages(result)}
+    assert set(by_id) == {"tc-a", "tc-b"}
+    assert json.loads(str(by_id["tc-a"].content))["ok"] is True
+    assert by_id["tc-b"].status == "error"
+    assert "one tool" in str(by_id["tc-b"].content).lower()
+    assert graph.get_state({"configurable": {"thread_id": THREAD}}).values
+    assert result["messages"][-1].content == "done"

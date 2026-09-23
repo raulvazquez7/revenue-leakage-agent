@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import pytest
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 
+from fakes import scripted
 from revenue_leakage_agent.config import AppSettings
 from revenue_leakage_agent.context import AgentContext
 from revenue_leakage_agent.graph import build_graph
@@ -65,3 +67,26 @@ def test_build_graph_accepts_checkpointer() -> None:
     graph = build_graph(_models(), checkpointer=saver)
 
     assert graph.checkpointer is saver  # pyright: ignore[reportUnknownMemberType]
+
+
+def test_agent_model_is_bound_without_parallel_tool_calls() -> None:
+    """Non-message state keys have no reducers, so one tool call per step."""
+
+    agent = scripted(AIMessage(content="unused"))
+    models = AgentModels(
+        router=scripted(AIMessage(content="unused")),
+        agent=agent,
+        conversational=scripted(AIMessage(content="unused")),
+    )
+
+    build_graph(models)
+
+    assert len(agent.bind_tools_kwargs) == 1
+    assert agent.bind_tools_kwargs[0]["parallel_tool_calls"] is False
+
+
+def test_router_model_does_not_stream() -> None:
+    """Its structured output is never shown, and streaming it warns (see
+    test_openai_router_streams_turn_without_pydantic_serializer_warnings)."""
+
+    assert _models().router.disable_streaming is True

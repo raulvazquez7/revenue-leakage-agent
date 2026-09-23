@@ -97,7 +97,8 @@ persistence) is in [`docs/architecture.md`](docs/architecture.md).
 | HITL via `interrupt()` inside the tool | The approval gate sits next to the write it protects, so no prompt or routing mistake can skip it. Rejections are recorded in state; approvals also go to an audit log. |
 | Runtime context for dependencies | `AgentContext(store=...)` is passed per run. Tools call `resolve_store(runtime.context)`, which falls back to a default store so Studio can run with an empty context. |
 | Prompts as package data | `prompts/*.md` load via `importlib.resources` and fail loudly if missing or empty. Runtime state goes in a separate system message, so the static prompt stays stable. |
-| Bounded history | `trim_messages` keeps the last N messages starting on a `HumanMessage` (no orphaned `ToolMessage`s). The router and conversational nodes only see human/assistant dialogue, without tool traffic. |
+| Bounded history | `trim_messages` keeps the last N messages starting on a `HumanMessage` (no orphaned `ToolMessage`s), after dropping tool calls left unanswered by an abandoned turn. The router and conversational nodes only see human/assistant dialogue, without tool traffic. |
+| One tool call per step | State keys other than `messages` take one write per step, so tools are bound with `parallel_tool_calls=False` and the tools node runs only the first call if a model sends several (the rest get an error result to retry). Simpler than merging concurrent state writes. |
 | Tests vs. evals | `tests/` is deterministic and runs in CI: it checks state, ledgers and interrupts, never wording. `evals/` accepts non-determinism and a small cost to check that real models take the right path. |
 
 ## Quickstart
@@ -113,7 +114,7 @@ uv run task ui          # Streamlit UI on http://localhost:8501
 Other ways to run it:
 
 ```bash
-uv run task cli         # terminal chat with a verbose trace (same as: uv run revenue-leakage-agent)
+uv run task cli         # terminal chat with a node/state trace (= uv run revenue-leakage-agent); --verbose adds raw chunks
 uv run task api         # FastAPI on http://localhost:8000 (OpenAPI docs at /docs)
 uv run task studio      # LangGraph Studio via `langgraph dev` (runs in an isolated uvx env)
 ```
@@ -123,7 +124,7 @@ checkpoints):
 
 ```bash
 cp .env.example .env        # set OPENAI_API_KEY
-docker compose up --build   # UI on :8501, API on :8000
+docker compose up --build   # UI on 127.0.0.1:8501, API on 127.0.0.1:8000
 docker compose down -v      # stop and drop the state volume
 ```
 
@@ -132,7 +133,7 @@ docker compose down -v      # stop and drop the state volume
 
 ```bash
 curl -s -X POST localhost:8000/threads
-# {"thread_id":"<id>"}
+# {"thread_id":"<id>"}  (GET /threads/<id> returns 404 until the first message)
 curl -s -X POST localhost:8000/threads/<id>/messages \
   -H 'Content-Type: application/json' -d '{"content": "Investigate SUB-2001"}'
 # {"thread_id":"<id>","replies":["..."],"interrupt":null}
@@ -149,8 +150,10 @@ curl -s localhost:8000/threads/<id>   # scope, findings, pending/applied actions
 
 Configuration lives in [`.env.example`](.env.example): model names and
 reasoning effort per node, timeouts, history budgets, `CHECKPOINT_DB` (set it to
-persist conversations in SQLite; unset keeps them in memory) and the optional
-Langfuse keys.
+keep checkpoints in SQLite; unset keeps them in memory) and the optional
+Langfuse keys. With SQLite, API threads (the client keeps the `thread_id`)
+survive a restart; the UI and CLI start a new thread per session, so their
+conversations don't carry over.
 
 ## Demo script
 
@@ -197,14 +200,15 @@ uv run task test      # pytest: unit + integration, no API key or network needed
 uv run task eval      # live-model trajectory evals (needs OPENAI_API_KEY, costs a few cents)
 ```
 
-- **Unit tests** cover the billing math, store, tools, history trimming,
-  prompts, streaming helpers, tracing config and Studio compatibility.
+- **Unit tests** cover the billing math, store, tools and their schemas,
+  history trimming, prompts, streaming helpers, the CLI, settings isolation,
+  tracing config and Studio compatibility.
 - **Integration tests** run the compiled graph with `ScriptedChatModel`: the
-  investigation loop, approve / reject / rollback / double-apply, token
-  streaming, SQLite checkpoints surviving a new graph, the HTTP API end to end,
+  investigation loop, approve / reject / rollback / double-apply, parallel tool
+  calls, token streaming, SQLite checkpoints surviving a new graph, the HTTP API end to end,
   and the golden dataset.
 - **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs format, lint, pyright and
-  pytest (coverage floor 60%) on Python 3.11, 3.12 and 3.13.
+  pytest (coverage floor 70%) on Python 3.11, 3.12 and 3.13.
 - **Evals** are 9 scenarios (routing, each dataset finding, approve/reject
   writes, no write without approval). Scenarios and recorded results are in
   [`evals/README.md`](evals/README.md).
@@ -234,7 +238,7 @@ src/revenue_leakage_agent/
 tests/                   # unit/ and integration/, scripted fakes in fakes.py
 evals/                   # live-model trajectory scenarios
 data/                    # synthetic read-only dataset
-docs/                    # architecture notes and screenshot
+docs/                    # architecture notes and screenshots
 ```
 
 ## Limitations
@@ -255,7 +259,7 @@ This is a learning project, and it shows in places:
 - **`plan_mismatch` is not detected deterministically.** A plan amendment is
   only proposed when the model judges that the plan no longer matches the deal.
 - **Single user, no auth.** The API and UI have no authentication and are meant
-  for localhost.
+  for localhost; `compose.yaml` publishes both ports on `127.0.0.1` only.
 - **OpenAI only by default.** `llm.py` builds `ChatOpenAI` models. Other
   providers would work through `build_graph(models=...)`, but this is untested.
 - **Small evals.** 9 scenarios with regex and trajectory checks, not a

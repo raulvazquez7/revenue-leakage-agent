@@ -130,3 +130,103 @@ def test_load_audit_log_returns_entries_in_order(store: JsonStore) -> None:
     entries = store.load_audit_log()
     assert [entry["audit_id"] for entry in entries] == ["AUD-0001", "AUD-0002"]
     assert entries[1]["event_type"] == "action_rolled_back"
+
+
+def _make_good(action_id: str) -> dict[str, object]:
+    return MakeGoodInvoiceDraft(
+        action_id=action_id,
+        plan_id="SUB-2001",
+        amount=Decimal("10"),
+        currency="USD",
+        reason="r",
+    ).model_dump(mode="json")
+
+
+def test_ledger_ids_do_not_collide_after_rolling_back_an_earlier_record(
+    store: JsonStore,
+) -> None:
+    store.append_make_good_invoice(_make_good("A"))
+    second = store.append_make_good_invoice(_make_good("B"))
+    store.remove_sandbox_record("make_good_invoice", "A")
+
+    third = store.append_make_good_invoice(_make_good("C"))
+
+    assert second["invoice_id"] == "INV-MG-0002"
+    assert third["invoice_id"] == "INV-MG-0003"
+
+
+def test_credit_memo_and_amendment_ids_continue_from_highest(store: JsonStore) -> None:
+    memo = CreditMemoDraft(
+        action_id="CM-A",
+        invoice_id="INV-5022",
+        plan_id="SUB-2014-A1",
+        amount=Decimal("1"),
+        currency="USD",
+        reason="r",
+    )
+    amendment = PlanAmendmentDraft(
+        action_id="PA-A", plan_id="SUB-2020", change_set={"total_value": 1}, reason="r"
+    )
+    store.append_credit_memo(memo.model_dump(mode="json"))
+    store.append_credit_memo({**memo.model_dump(mode="json"), "action_id": "CM-B"})
+    store.remove_sandbox_record("credit_memo", "CM-A")
+    store.append_plan_amendment(amendment.model_dump(mode="json"))
+    store.append_plan_amendment(
+        {**amendment.model_dump(mode="json"), "action_id": "PA-B"}
+    )
+    store.remove_sandbox_record("plan_amendment", "PA-A")
+
+    next_memo = store.append_credit_memo(
+        {**memo.model_dump(mode="json"), "action_id": "CM-C"}
+    )
+    next_amendment = store.append_plan_amendment(
+        {**amendment.model_dump(mode="json"), "action_id": "PA-C"}
+    )
+
+    assert next_memo["memo_id"] == "CM-0003"
+    assert next_amendment["amendment_id"] == "AMD-0003"
+
+
+def test_audit_ids_continue_from_highest_existing(store: JsonStore) -> None:
+    store.sandbox_dir.mkdir(parents=True)
+    (store.sandbox_dir / "audit_log.json").write_text(
+        '[{"audit_id": "AUD-0005", "event_type": "x"}]', encoding="utf-8"
+    )
+
+    entry = store.append_audit_log({"event_type": "y"})
+
+    assert entry["audit_id"] == "AUD-0006"
+
+
+def _apply(store: JsonStore, action_id: str) -> dict[str, object]:
+    """Append a make-good record and its audit entry, as the apply tool does."""
+
+    record = store.append_make_good_invoice(_make_good(action_id))
+    store.append_audit_log({"event_type": "action_applied", "sandbox_record": record})
+    return record
+
+
+def _rollback(store: JsonStore, action_id: str) -> None:
+    removed = store.remove_sandbox_record("make_good_invoice", action_id)
+    store.append_audit_log(
+        {"event_type": "action_rolled_back", "removed_record": removed}
+    )
+
+
+def test_ledger_ids_are_never_reused_after_rolling_back_the_newest_record(
+    store: JsonStore,
+) -> None:
+    first = _apply(store, "A")
+    _rollback(store, "A")
+
+    second = _apply(store, "B")
+
+    assert first["invoice_id"] == "INV-MG-0001"
+    assert second["invoice_id"] == "INV-MG-0002"
+
+
+def test_reset_sandbox_restarts_ledger_numbering(store: JsonStore) -> None:
+    _apply(store, "A")
+    store.reset_sandbox()
+
+    assert _apply(store, "B")["invoice_id"] == "INV-MG-0001"

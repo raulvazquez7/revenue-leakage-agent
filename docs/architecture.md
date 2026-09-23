@@ -55,7 +55,11 @@ its own.
 
 `AgentState` (`state.py`) is a `TypedDict` with `total=False`. Only `messages`
 has a reducer (`add_messages`); every other key is replaced by whoever writes
-it.
+it. A key without a reducer accepts one write per step, so the agent runs one
+tool call per step: tools are bound with `parallel_tool_calls=False`, and the
+`tools` node runs only the first call of an AIMessage that carries several,
+answering the rest with a `PARALLEL_TOOL_CALL` error `ToolMessage` so the model
+can retry them one at a time.
 
 | Key | Type | Written by | Read by |
 |---|---|---|---|
@@ -80,8 +84,8 @@ message, right after the static prompt.
 |---|---|---|
 | `router` | `gpt-5.4-mini` with `with_structured_output(RouteDecision, method="json_schema", strict=True)` | Classifies the turn as `conversation` or `investigation` (with an `intent` and `reason`) and optionally writes a `resolved_question` for implicit follow-ups ("and the other months?"). Sees the active scope and the recent dialogue only. |
 | `conversation` | `gpt-5.4-mini` | Greetings, capability questions, general concepts, out-of-scope redirects. No tools. |
-| `agent` | `gpt-5.4-2026-03-05` with the 8 tools bound | The investigator. Loops with `tools` until it answers without tool calls (`tools_condition` → `END`). |
-| `tools` | none | `ToolNode(tools, handle_tool_errors=True)`. |
+| `agent` | `gpt-5.4-2026-03-05` with the 8 tools bound (`parallel_tool_calls=False`) | The investigator. Loops with `tools` until it answers without tool calls (`tools_condition` → `END`). |
+| `tools` | none | `build_tool_node()`: a `ToolNode` that turns tool exceptions into error `ToolMessage`s (approval interrupts still propagate) and runs one tool call per step. |
 
 Model names, reasoning effort and timeouts are per node and come from `.env`
 (see `config.py`). The agent turn is bounded by LangGraph's default
@@ -124,14 +128,17 @@ from:
 1. Expected amount per period = `total_value / periods_per_year` (Monthly 12,
    Quarterly 4, Annual 1), rounded half-up to cents.
 2. Periods are rebuilt from the plan `start_date` in cadence steps up to the
-   last invoice's `issue_date`. A plan with no invoices produces no periods.
+   last invoice's `issue_date`; period k starts at `start_date` plus k cadence
+   steps, clamped to the month end (a Jan 31 monthly start gives Feb 28,
+   Mar 31, Apr 30). A plan with no invoices produces no periods.
 3. Each invoice lands in the period containing its `issue_date`. Foreign
    currency invoices are converted with the exact-date FX rate; the evidence
    string records amount, rate, date and rounding policy.
 4. Each period gets a status: `ok`, `missing_invoice` (only for empty periods
    between the first and last billed period), `underbilling` or `overbilling`.
 5. Non-`ok` periods become `Finding`s. Overbilling that existing credit memos
-   (converted if needed) fully cover becomes `already_corrected` with
+   on that period's invoices (converted if needed) fully cover becomes
+   `already_corrected` with
    `recommended_action="none"`. A mismatch with FX involved is typed
    `fx_mismatch`.
 
@@ -205,8 +212,11 @@ There are two kinds of state, stored separately.
 | tests | `InMemorySaver`, or SQLite in `test_persistence.py` |
 
 A checkpointer is required for `interrupt()` to resume. The API refuses an
-injected graph that has none. With SQLite, a conversation (including a pending
-approval) survives a restart; the API closes the connection on shutdown.
+injected graph that has none. With SQLite, a thread (including a pending
+approval) survives a restart, which in practice matters for the API: the client
+keeps the `thread_id`, while the Streamlit UI (per browser session) and the CLI
+(per run) start a new thread each time. The API and CLI close the connection on
+shutdown.
 
 **Sandbox ledgers** (the "writes"), under `SANDBOX_DIR` (default `sandbox/`,
 git-ignored):
@@ -245,7 +255,10 @@ counts messages, not tokens:
 - `recent_history(messages, AGENT_HISTORY_MESSAGES=40)` for the agent: the last
   N messages starting on a `HumanMessage`, so a `ToolMessage` is never separated
   from the `AIMessage` that called it. If the current turn alone is longer than
-  N, the whole turn is kept.
+  N, the whole turn is kept. Before trimming it drops any `AIMessage` whose
+  tool calls were never all answered, plus any `ToolMessage` without its
+  parent, so an abandoned turn (a UI rerun mid-stream, a new message sent
+  instead of resuming an approval) can't make the provider reject later turns.
 - `dialogue_history(messages, ROUTER_HISTORY_MESSAGES=12)` for the router and
   conversational nodes: only human messages and assistant messages with text
   and no tool calls, then the same trimming.
@@ -257,8 +270,8 @@ call sees.
 
 | Interface | Entry point | Notes |
 |---|---|---|
-| Streamlit | `uv run task ui` | Streams tokens with `stream_mode=["messages", "updates"]`. Only `agent` and `conversation` tokens reach the chat; the router's structured-output tokens are filtered out. The interrupt is taken from the `updates` stream (with `get_state()` as a fallback) and drawn as an approval card. The sidebar shows the thread ID, audit log, **New conversation** and **Reset sandbox**. |
-| CLI | `uv run task cli` | `stream_mode="updates"`, prints every chunk and state change as a trace, and asks `approve/reject` on interrupts. |
+| Streamlit | `uv run task ui` | Streams tokens with `stream_mode=["messages", "updates"]`. Only `agent` and `conversation` tokens reach the chat; the router's structured output is filtered out (the default router model is built with `disable_streaming=True`, so it arrives as one message). The interrupt is taken from the `updates` stream (with `get_state()` as a fallback) and drawn as an approval card. The sidebar shows the thread ID, audit log, **New conversation** and **Reset sandbox**. |
+| CLI | `uv run task cli` | `stream_mode="updates"`, prints each node, state change and tool result as a trace (`--verbose` also dumps every raw chunk), and asks `approve/reject` on interrupts. Ctrl-C/Ctrl-D exit cleanly and close the SQLite connection if one was opened. |
 | HTTP API | `uv run task api` | FastAPI with sync endpoints (the graph is sync). Models and the checkpointer are built in the lifespan, so importing the module needs no API key. |
 | Studio | `uv run task studio` | `langgraph dev` via `uvx` with `langgraph.json` pointing at `graph.py:make_graph`. |
 
@@ -267,7 +280,7 @@ API endpoints:
 | Method and path | Body | Result |
 |---|---|---|
 | `GET /health` | | `{"status": "ok"}` |
-| `POST /threads` | | `{"thread_id": ...}` (a new UUID; nothing is stored until the first message) |
+| `POST /threads` | | `{"thread_id": ...}` (a new UUID; nothing is stored until the first message, so `GET /threads/{id}` returns 404 until then) |
 | `POST /threads/{id}/messages` | `{"content": "..."}` | `TurnResponse`: this turn's replies and the pending interrupt, if any. 409 if an approval is pending. |
 | `POST /threads/{id}/resume` | `{"decision": "approve" \| "reject"}` | `TurnResponse`. 404 for an unknown thread, 409 if nothing is pending. |
 | `GET /threads/{id}` | | `active_scope`, `findings`, `pending_action`, `applied_actions`, `interrupt`. 404 for an unknown thread. |
@@ -284,8 +297,8 @@ handler can't be built, it logs a warning and also runs untraced.
 The handler is merged into the node's inherited run config
 (`merge_configs(ensure_config(), ...)`) instead of replacing it. Replacing it
 would detach the model call from the graph run, and LangGraph's `messages`
-stream mode would stop seeing tokens. Tests force the Langfuse variables empty
-so they never send traces.
+stream mode would stop seeing tokens. Tests ignore `.env` and unset every
+settings variable (Langfuse keys included), so they never send traces.
 
 ## Error handling
 
@@ -294,7 +307,7 @@ so they never send traces.
   with `error_code`, `message`, `recoverable` and an `llm_instruction` the
   prompt tells the model to follow. They also set `last_error`.
 - **Unexpected exceptions** inside a tool (for example a missing FX rate, or an
-  unsupported currency filter) are caught by `ToolNode(handle_tool_errors=True)`
+  unsupported currency filter) are caught by the `tools` node (`build_tool_node()`)
   and returned to the model as an error `ToolMessage`, so the turn still ends
   with a reply.
 - **Setup errors**: without `OPENAI_API_KEY`, `build_default_models()` raises a

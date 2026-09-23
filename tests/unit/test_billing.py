@@ -14,7 +14,6 @@ from revenue_leakage_agent.domain.models import (
     CreditMemoDraft,
     ExchangeRate,
     Invoice,
-    InvoiceFilters,
     MakeGoodInvoiceDraft,
     Plan,
     PlanAmendmentDraft,
@@ -77,7 +76,7 @@ def test_detects_annual_underbilling() -> None:
     )
     invoices = [_invoice("INV-5041", "SUB-2020", "2025-02-06", Decimal("135000"))]
 
-    comparison = _compare(plan, invoices, start_date=date(2025, 2, 1))
+    comparison = _compare(plan, invoices)
     findings = comparison["findings"]
 
     assert len(findings) == 1
@@ -124,7 +123,6 @@ def test_fx_overbilling_marked_already_corrected_by_credit_memo() -> None:
         invoices,
         credit_memos=[memo],
         exchange_rates=[EUR_USD_2025_08_12],
-        start_date=date(2025, 8, 1),
     )
     findings = comparison["findings"]
 
@@ -133,6 +131,71 @@ def test_fx_overbilling_marked_already_corrected_by_credit_memo() -> None:
     assert findings[0]["status"] == "already_corrected"
     assert findings[0]["amount"] == "1200.00"
     assert findings[0]["recommended_action"] == "none"
+
+
+def test_month_end_start_does_not_drift_to_the_28th() -> None:
+    """Each period starts at start_date + k months, not previous start + 1."""
+
+    plan = _plan("SUB-EOM", Decimal("120000"), "Monthly", start_date=date(2025, 1, 31))
+    invoices = [
+        _invoice(f"INV-{day}", "SUB-EOM", day, Decimal("10000"))
+        for day in ("2025-01-31", "2025-02-28", "2025-03-31", "2025-04-30")
+    ]
+
+    comparison = _compare(plan, invoices)
+
+    assert [row["period_start"] for row in comparison["periods"]] == [
+        "2025-01-31",
+        "2025-02-28",
+        "2025-03-31",
+        "2025-04-30",
+    ]
+    assert [row["period_end"] for row in comparison["periods"]] == [
+        "2025-02-27",
+        "2025-03-30",
+        "2025-04-29",
+        "2025-05-30",
+    ]
+    assert comparison["findings"] == []
+
+
+def test_leap_day_annual_start_returns_to_feb_29_in_leap_years() -> None:
+    plan = _plan("SUB-LEAP", Decimal("1000"), "Annual", start_date=date(2024, 2, 29))
+    starts = ["2024-02-29", "2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]
+    invoices = [
+        _invoice(f"INV-{day}", "SUB-LEAP", day, Decimal("1000")) for day in starts
+    ]
+
+    comparison = _compare(plan, invoices)
+
+    assert [row["period_start"] for row in comparison["periods"]] == starts
+    assert comparison["findings"] == []
+
+
+def test_one_credit_memo_cannot_correct_two_overbilled_periods() -> None:
+    """A memo covers only the period holding the invoice it references."""
+
+    plan = _plan("SUB-OVER", Decimal("40000"), "Quarterly")
+    invoices = [
+        _invoice("INV-Q1", "SUB-OVER", "2025-01-10", Decimal("11200")),
+        _invoice("INV-Q2", "SUB-OVER", "2025-04-10", Decimal("11200")),
+    ]
+    memo = CreditMemo(
+        memo_id="MEMO-Q1",
+        plan_id="SUB-OVER",
+        invoice_id="INV-Q1",
+        amount=Decimal("1200"),
+        currency="USD",
+        issue_date=date(2025, 1, 20),
+        reason="Q1 overbilling",
+    )
+
+    findings = _compare(plan, invoices, credit_memos=[memo])["findings"]
+
+    assert [(f["invoice_ids"], f["status"]) for f in findings] == [
+        (["INV-Q1"], "already_corrected"),
+        (["INV-Q2"], "overbilled"),
+    ]
 
 
 def test_converts_fx_with_documented_rounding_policy() -> None:
@@ -190,14 +253,12 @@ def _compare(
     *,
     credit_memos: list[CreditMemo] | None = None,
     exchange_rates: list[ExchangeRate] | None = None,
-    start_date: date | None = None,
 ) -> dict[str, Any]:
     return compare_plan_to_invoices(
         plan=plan,
         invoices=invoices,
         exchange_rates=exchange_rates or [],
         credit_memos=credit_memos or [],
-        filters=InvoiceFilters(plan_id=plan.plan_id, start_date=start_date),
     )
 
 
