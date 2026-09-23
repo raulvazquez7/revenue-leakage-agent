@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import json
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from typing import Any, cast
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from revenue_leakage_agent.graph import build_graph
+from revenue_leakage_agent.graph import AgentGraph, build_graph
 from revenue_leakage_agent.messages import extract_ai_text
+from revenue_leakage_agent.state import AgentState
 
 warnings.filterwarnings(
     "ignore",
@@ -20,9 +23,9 @@ warnings.filterwarnings(
 
 
 def main() -> None:
-    graph = build_graph()
+    graph = build_graph(checkpointer=InMemorySaver())
     thread_id = f"cli-{uuid4()}"
-    config = {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
     print("Revenue Leakage Agent CLI. Type 'exit' to quit.")
     print(f"Thread ID: {thread_id}")
@@ -34,11 +37,7 @@ def main() -> None:
             continue
 
         interrupt_payload = _run_stream(
-            graph.stream(
-                {"messages": [HumanMessage(content=user_input)]},
-                config,
-                stream_mode="updates",
-            )
+            _stream(graph, {"messages": [HumanMessage(content=user_input)]}, config)
         )
         while interrupt_payload is not None:
             action_raw = interrupt_payload.get("action", {})
@@ -61,12 +60,22 @@ def main() -> None:
                 print(f"- Reason: {action.get('reason')}")
             decision = input("Approve? [approve/reject]: ").strip().lower()
             interrupt_payload = _run_stream(
-                graph.stream(
-                    Command(resume={"decision": decision}),
-                    config,
-                    stream_mode="updates",
-                )
+                _stream(graph, Command(resume={"decision": decision}), config)
             )
+
+
+def _stream(
+    graph: AgentGraph,
+    payload: AgentState | Command[Any],
+    config: RunnableConfig,
+) -> Iterator[dict[str, Any]]:
+    """Stream graph updates; the only place the untyped overload is touched."""
+
+    return graph.stream(  # pyright: ignore[reportUnknownMemberType]
+        payload,
+        config,
+        stream_mode="updates",
+    )
 
 
 def _run_stream(stream: Iterable[dict[str, Any]]) -> dict[str, Any] | None:

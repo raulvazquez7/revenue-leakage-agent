@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from revenue_leakage_agent.graph import build_graph
@@ -24,7 +26,7 @@ st.title("Revenue Leakage Agent")
 
 def _init_session() -> None:
     if "graph" not in st.session_state:
-        st.session_state.graph = build_graph()
+        st.session_state.graph = build_graph(checkpointer=InMemorySaver())
     if "thread_id" not in st.session_state:
         st.session_state.thread_id = f"streamlit-{uuid4()}"
     if "chat_messages" not in st.session_state:
@@ -33,7 +35,7 @@ def _init_session() -> None:
         st.session_state.pending_interrupt = None
 
 
-def _config() -> dict[str, dict[str, str]]:
+def _config() -> RunnableConfig:
     return {"configurable": {"thread_id": str(st.session_state.thread_id)}}
 
 

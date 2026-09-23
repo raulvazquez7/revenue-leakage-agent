@@ -1,51 +1,42 @@
 from __future__ import annotations
 
 import json
-from typing import Any, cast
+from collections.abc import Callable, Sequence
+from typing import Any
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
+from langchain_core.tools import BaseTool
 
-from revenue_leakage_agent.config import build_chat_openai_kwargs, get_settings
+from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
-from revenue_leakage_agent.tools import get_tools
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
 
 
-def agent_node(state: AgentState) -> dict[str, object]:
-    settings = get_settings()
-    openai_api_key = settings.openai_api_key
-    if not openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is required to run the investigator agent.")
+def make_agent_node(
+    model: BaseChatModel,
+    tools: Sequence[BaseTool],
+) -> Callable[[AgentState], dict[str, object]]:
+    """Build the investigator node with ``tools`` bound to ``model``."""
+
     prompt = load_prompt("agent")
+    llm = model.bind_tools(tools)
 
-    base_llm: Any = ChatOpenAI(
-        **build_chat_openai_kwargs(
-            model=settings.agent_model,
-            api_key=SecretStr(openai_api_key),
-            reasoning_effort=settings.agent_reasoning_effort,
-            reasoning_summary=settings.agent_reasoning_summary,
-            timeout_seconds=settings.agent_timeout_seconds,
-        )
-    )
-    llm: Any = base_llm.bind_tools(get_tools())
-    config: RunnableConfig = {"callbacks": get_langfuse_callbacks(settings)}
-
-    response = cast(
-        AIMessage,
-        llm.invoke(
+    def agent_node(state: AgentState) -> dict[str, object]:
+        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(get_settings())}
+        response = llm.invoke(
             [
                 SystemMessage(content=prompt),
                 SystemMessage(content=_state_context(state)),
                 *state.get("messages", []),
             ],
             config=config,
-        ),
-    )
-    return {"messages": [response]}
+        )
+        return {"messages": [response]}
+
+    return agent_node
 
 
 def _state_context(state: AgentState) -> str:
