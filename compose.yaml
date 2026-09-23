@@ -1,6 +1,7 @@
 # Local containers: `docker compose up --build`, then open http://localhost:8501
 # (UI) or http://localhost:8000/docs (API). Both read secrets from .env and
-# share one volume for sandbox ledgers and SQLite checkpoints.
+# share one volume for sandbox ledgers and SQLite checkpoints. Ports are bound
+# to 127.0.0.1 because neither service has authentication.
 x-agent: &agent
   build: .
   image: revenue-leakage-agent:dev
@@ -18,7 +19,7 @@ services:
   ui:
     <<: *agent
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
       interval: 30s
@@ -29,7 +30,7 @@ services:
     <<: *agent
     command: ["uvicorn", "revenue_leakage_agent.interfaces.api:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s

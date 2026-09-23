@@ -124,7 +124,7 @@ checkpoints):
 
 ```bash
 cp .env.example .env        # set OPENAI_API_KEY
-docker compose up --build   # UI on :8501, API on :8000
+docker compose up --build   # UI on 127.0.0.1:8501, API on 127.0.0.1:8000
 docker compose down -v      # stop and drop the state volume
 ```
 
@@ -256,7 +256,7 @@ This is a learning project, and it shows in places:
 - **`plan_mismatch` is not detected deterministically.** A plan amendment is
   only proposed when the model judges that the plan no longer matches the deal.
 - **Single user, no auth.** The API and UI have no authentication and are meant
-  for localhost.
+  for localhost; `compose.yaml` publishes both ports on `127.0.0.1` only.
 - **OpenAI only by default.** `llm.py` builds `ChatOpenAI` models. Other
   providers would work through `build_graph(models=...)`, but this is untested.
 - **Small evals.** 9 scenarios with regex and trajectory checks, not a
