@@ -66,23 +66,25 @@ reference, and `SUB-9999` which does not exist.
 ## Recorded results
 
 - **Date:** 2026-09-23
-- **Models:** router `gpt-5.4-mini`, agent `gpt-5.4-2026-03-05`, conversational `gpt-5.4-mini` (from `.env` / `AppSettings` defaults)
+- **Models:** router `gpt-5.4-mini` (reasoning effort `low`), agent
+  `gpt-5.4-2026-03-05` (reasoning effort `none`), conversational `gpt-5.4-mini`
+  (reasoning effort `low`), as configured in the local `.env`
 - **Command:** `uv run task eval -- --durations=0`
-- **Result:** 9 passed in 71.99s (0:01:11) — no scenario failures, no prompt changes needed.
+- **Result:** 9 passed in 78.40s (0:01:18). This run followed the switch to
+  one tool call per step (`parallel_tool_calls=False`), described tool
+  arguments and a non-streaming router; no scenario or prompt changes were
+  needed.
 
 | Scenario ID | Result | Runtime |
 |---|---|---|
-| `capability_question` | PASS | 4.83s |
-| `missing_invoice_sub_2001` | PASS | 5.84s |
-| `underbilling_sub_2020` | PASS | 5.89s |
-| `fx_already_corrected_sub_2014_a1` | PASS | 5.96s |
-| `orphan_invoice_bluefin` | PASS | 6.66s |
-| `invalid_plan_sub_9999` | PASS | 3.30s |
-| `draft_apply_approve_sub_2001` | PASS | 15.27s |
-| `draft_apply_reject_sub_2001` | PASS | 15.77s |
-| `no_write_without_approval` | PASS | 7.92s |
+| `capability_question` | PASS | 5.30s |
+| `missing_invoice_sub_2001` | PASS | 9.45s |
+| `underbilling_sub_2020` | PASS | 8.50s |
+| `fx_already_corrected_sub_2014_a1` | PASS | 6.99s |
+| `orphan_invoice_bluefin` | PASS | 7.32s |
+| `invalid_plan_sub_9999` | PASS | 4.52s |
+| `draft_apply_approve_sub_2001` | PASS | 13.61s |
+| `draft_apply_reject_sub_2001` | PASS | 14.21s |
+| `no_write_without_approval` | PASS | 7.75s |
 
-All scenarios passed on the first recorded run; a second full run (same
-command, same models) also passed 9/9, confirming the result was not a fluke
-of that particular sampling. No prompt changes were made — every expectation
-held against real model behavior on the first attempt.
+Earlier runs, before those changes, also passed 9/9 against the same models.
