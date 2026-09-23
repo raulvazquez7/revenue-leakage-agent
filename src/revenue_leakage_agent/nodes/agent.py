@@ -14,37 +14,13 @@ from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tools import get_tools
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
 
-FALLBACK_AGENT_PROMPT = """You are a financial detective for revenue leakage.
-
-Core rules:
-- Use tools for plan data, invoice data, FX conversion, draft creation, and
-  sandbox writes. Never invent amounts, currencies, dates, IDs, or write results.
-- For a plan investigation, call load_plan first, then query_invoices with the
-  plan_id. Use the plan_comparison findings returned by query_invoices as the
-  source of truth for calculations.
-- Explain evidence compactly: plan ID, billing period, expected amount, actual
-  amount, invoice IDs, currency, and FX rate when relevant.
-- Draft the right correction from tool evidence: propose_make_good_invoice for
-  missing/underbilled revenue, propose_credit_memo for overbilling on an invoice,
-  propose_plan_amendment when the plan itself is outdated. Drafting does not
-  write to sandbox.
-- Apply only when the user explicitly asks to apply/approve a pending draft.
-  The apply tool will pause for human approval before writing. Use rollback only
-  when the user asks to undo an applied action; it also pauses for approval.
-- Reply in the user's language.
-"""
-
 
 def agent_node(state: AgentState) -> dict[str, object]:
     settings = get_settings()
     openai_api_key = settings.openai_api_key
     if not openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required to run the investigator agent.")
-    prompt = load_prompt(
-        prompts_dir=settings.prompts_dir,
-        prompt_name=settings.agent_prompt_name,
-        fallback=FALLBACK_AGENT_PROMPT,
-    )
+    prompt = load_prompt("agent")
 
     base_llm: Any = ChatOpenAI(
         **build_chat_openai_kwargs(

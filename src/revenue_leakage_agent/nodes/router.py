@@ -13,28 +13,11 @@ from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
 
-FALLBACK_ROUTER_PROMPT = """You route a revenue leakage assistant turn.
-
-Routes:
-- conversation: greetings, capability questions, out-of-scope requests, or answers
-  that do not need billing tools.
-- investigation: questions or follow-ups about billing plans, invoices, revenue
-  leakage, corrective actions, drafts, approval, or sandbox mutations.
-
-Use the conversation history and active scope to resolve follow-ups like "what
-about that month?" into a standalone resolved_question when possible. Do not
-choose financial tools here; only choose the route.
-"""
-
 
 def router_node(state: AgentState) -> dict[str, object]:
     settings = get_settings()
     openai_api_key = _require_openai_key(settings.openai_api_key)
-    prompt = load_prompt(
-        prompts_dir=settings.prompts_dir,
-        prompt_name=settings.router_prompt_name,
-        fallback=FALLBACK_ROUTER_PROMPT,
-    )
+    prompt = load_prompt("router")
 
     base_llm: Any = ChatOpenAI(
         **build_chat_openai_kwargs(

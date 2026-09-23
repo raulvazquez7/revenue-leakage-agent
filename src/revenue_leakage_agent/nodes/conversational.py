@@ -12,15 +12,6 @@ from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.tracing import get_langfuse_callbacks
 
-FALLBACK_CONVERSATIONAL_PROMPT = """You are the conversational surface for a
-revenue leakage agent.
-
-Handle greetings, capability questions, and out-of-scope turns. Keep answers
-short, useful, and in the user's language. Do not perform financial analysis or
-invent billing evidence; when analysis is needed, tell the user to provide a
-plan ID so the investigation route can use tools.
-"""
-
 
 def conversational_node(state: AgentState) -> dict[str, object]:
     settings = get_settings()
@@ -28,11 +19,7 @@ def conversational_node(state: AgentState) -> dict[str, object]:
     if not openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required to run the conversational node.")
 
-    prompt = load_prompt(
-        prompts_dir=settings.prompts_dir,
-        prompt_name=settings.conversational_prompt_name,
-        fallback=FALLBACK_CONVERSATIONAL_PROMPT,
-    )
+    prompt = load_prompt("conversational")
     base_llm: Any = ChatOpenAI(
         **build_chat_openai_kwargs(
             model=settings.conversational_model,
