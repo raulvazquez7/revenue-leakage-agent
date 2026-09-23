@@ -45,6 +45,9 @@ htmlcov/
 
 # Generated sandbox output
 sandbox/
+
+# LangGraph dev server state
+.langgraph_api/
 logs/
 *.log
 

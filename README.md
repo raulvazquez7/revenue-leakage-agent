@@ -16,6 +16,7 @@ uv sync --all-groups
 cp .env.example .env   # set OPENAI_API_KEY
 uv run task ui       # Streamlit UI
 uv run task cli      # terminal chat (same as: uv run revenue-leakage-agent)
+uv run task studio   # LangGraph Studio via `langgraph dev` (studio group)
 ```
 
 ## Quality checks
