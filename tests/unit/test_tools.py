@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.constants import END, START
@@ -13,7 +14,10 @@ from langgraph.types import Command
 from revenue_leakage_agent.context import AgentContext, resolve_store
 from revenue_leakage_agent.state import AgentState
 from revenue_leakage_agent.store import JsonStore
-from revenue_leakage_agent.tools import get_tools
+from revenue_leakage_agent.tools import (
+    _is_approved,  # pyright: ignore[reportPrivateUsage]
+    get_tools,
+)
 
 TEST_PLAN = {
     "plan_id": "SUB-TEST",
@@ -138,3 +142,53 @@ def test_apply_interrupts_then_writes_to_context_store(store: JsonStore) -> None
     assert _tool_payload(resumed)["status"] == "applied"
     assert resumed["pending_action"] is None
     assert store.get_action_already_applied("DRAFT-MG-TEST")
+
+
+def test_load_plan_normalizes_whitespace_and_case(store: JsonStore) -> None:
+    """Review Focus 4: plan IDs are trimmed and upper-cased before lookup."""
+
+    _seed_plan(store)
+
+    result = _run_tool(store, "load_plan", {"plan_id": " sub-test "})
+
+    assert _tool_payload(result)["plan"]["plan_id"] == "SUB-TEST"
+    assert result["active_scope"]["plan_id"] == "SUB-TEST"
+
+
+def test_fx_convert_missing_rate_reports_error_and_completes_turn(
+    seeded_store: JsonStore,
+) -> None:
+    """Review Focus 2: ToolNode(handle_tool_errors=True) turns the raised
+    ValueError into an error ToolMessage instead of failing the graph run."""
+
+    result = _run_tool(
+        seeded_store,
+        "fx_convert",
+        {
+            "amount": "100",
+            "from_ccy": "EUR",
+            "to_ccy": "USD",
+            "on_date": "2099-01-01",
+        },
+    )
+
+    message = result["messages"][-1]
+    assert isinstance(message, ToolMessage)
+    assert message.status == "error"
+    assert "No FX rate for EUR->USD on 2099-01-01" in str(message.content)
+
+
+@pytest.mark.parametrize(
+    "decision",
+    ["Sí", "yes", "APPROVE", {"decision": "approved"}],
+)
+def test_is_approved_true_cases(decision: Any) -> None:
+    assert _is_approved(decision) is True
+
+
+@pytest.mark.parametrize(
+    "decision",
+    ["no", "", {"decision": "maybe"}],
+)
+def test_is_approved_false_cases(decision: Any) -> None:
+    assert _is_approved(decision) is False
