@@ -11,9 +11,12 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
+from revenue_leakage_agent.config import get_settings
+from revenue_leakage_agent.context import AgentContext
 from revenue_leakage_agent.graph import AgentGraph, build_graph
 from revenue_leakage_agent.messages import extract_ai_text
 from revenue_leakage_agent.state import AgentState
+from revenue_leakage_agent.store import JsonStore
 
 warnings.filterwarnings(
     "ignore",
@@ -24,6 +27,7 @@ warnings.filterwarnings(
 
 def main() -> None:
     graph = build_graph(checkpointer=InMemorySaver())
+    context = AgentContext(store=JsonStore(get_settings()))
     thread_id = f"cli-{uuid4()}"
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
@@ -37,7 +41,12 @@ def main() -> None:
             continue
 
         interrupt_payload = _run_stream(
-            _stream(graph, {"messages": [HumanMessage(content=user_input)]}, config)
+            _stream(
+                graph,
+                {"messages": [HumanMessage(content=user_input)]},
+                config,
+                context,
+            )
         )
         while interrupt_payload is not None:
             action_raw = interrupt_payload.get("action", {})
@@ -60,7 +69,12 @@ def main() -> None:
                 print(f"- Reason: {action.get('reason')}")
             decision = input("Approve? [approve/reject]: ").strip().lower()
             interrupt_payload = _run_stream(
-                _stream(graph, Command(resume={"decision": decision}), config)
+                _stream(
+                    graph,
+                    Command(resume={"decision": decision}),
+                    config,
+                    context,
+                )
             )
 
 
@@ -68,12 +82,14 @@ def _stream(
     graph: AgentGraph,
     payload: AgentState | Command[Any],
     config: RunnableConfig,
+    context: AgentContext,
 ) -> Iterator[dict[str, Any]]:
     """Stream graph updates; the only place the untyped overload is touched."""
 
     return graph.stream(  # pyright: ignore[reportUnknownMemberType]
         payload,
         config,
+        context=context,
         stream_mode="updates",
     )
 

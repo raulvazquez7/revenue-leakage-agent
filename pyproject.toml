@@ -44,6 +44,8 @@ typecheck = "pyright"
 test = "pytest"
 check = "ruff format --check . && ruff check . && pyright"
 precommit = "pre-commit run --all-files"
+ui = "streamlit run src/revenue_leakage_agent/interfaces/streamlit_app.py"
+cli = "revenue-leakage-agent"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
