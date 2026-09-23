@@ -44,6 +44,7 @@ format = "ruff format ."
 lint = "ruff check ."
 typecheck = "pyright"
 test = "pytest"
+eval = "pytest evals -m eval -p no:cacheprovider"
 check = "ruff format --check . && ruff check . && pyright"
 precommit = "pre-commit run --all-files"
 ui = "streamlit run src/revenue_leakage_agent/interfaces/streamlit_app.py"
@@ -60,12 +61,17 @@ addopts = [
     "-q",
     "--strict-markers",
     "--strict-config",
+    "-m",
+    "not eval",
+]
+markers = [
+    "eval: live-model trajectory eval (costs OpenAI usage; run via `task eval`).",
 ]
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "evals"]
 
 [tool.ruff.lint]
 select = [
@@ -85,7 +91,8 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "evals"]
+extraPaths = ["tests"]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"
 venvPath = "."
