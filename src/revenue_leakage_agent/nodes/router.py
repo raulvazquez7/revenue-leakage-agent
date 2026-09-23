@@ -5,14 +5,13 @@ from typing import Any, Literal, cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage
-from langchain_core.runnables import RunnableConfig
 
 from revenue_leakage_agent.config import get_settings
 from revenue_leakage_agent.domain.models import InvestigationScope, RouteDecision
 from revenue_leakage_agent.history import dialogue_history
 from revenue_leakage_agent.prompts import load_prompt
 from revenue_leakage_agent.state import AgentState
-from revenue_leakage_agent.tracing import get_langfuse_callbacks
+from revenue_leakage_agent.tracing import model_call_config
 
 
 def make_router_node(model: BaseChatModel) -> Callable[[AgentState], dict[str, object]]:
@@ -27,7 +26,7 @@ def make_router_node(model: BaseChatModel) -> Callable[[AgentState], dict[str, o
 
     def router_node(state: AgentState) -> dict[str, object]:
         settings = get_settings()
-        config: RunnableConfig = {"callbacks": get_langfuse_callbacks(settings)}
+        config = model_call_config(settings)
         raw_decision = llm.invoke(
             [
                 SystemMessage(content=prompt),

@@ -20,6 +20,16 @@ uv run task studio   # LangGraph Studio via `langgraph dev` (isolated uvx env)
 uv run task api      # HTTP API on :8000 (OpenAPI docs at /docs)
 ```
 
+## Docker
+
+```bash
+cp .env.example .env        # set OPENAI_API_KEY
+docker compose up --build   # UI on :8501, API on :8000
+docker compose down -v      # stop and drop the sandbox/checkpoint volume
+```
+
+Both services share a named volume for sandbox ledgers and SQLite checkpoints.
+
 ## Quality checks
 
 ```bash
