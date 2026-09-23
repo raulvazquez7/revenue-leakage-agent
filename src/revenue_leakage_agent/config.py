@@ -151,6 +151,3 @@ class AppSettings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
     return AppSettings()
-
-
-Settings = AppSettings
