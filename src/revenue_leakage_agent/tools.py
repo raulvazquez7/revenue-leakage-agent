@@ -151,7 +151,6 @@ def query_invoices(
             invoices=all_invoices,
             exchange_rates=store.load_exchange_rates(),
             credit_memos=all_credit_memos,
-            filters=filters,
         )
         findings = comparison["findings"]
 

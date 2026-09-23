@@ -82,8 +82,13 @@ def compare_plan_to_invoices(
     invoices: list[Invoice],
     exchange_rates: list[ExchangeRate],
     credit_memos: list[CreditMemo],
-    filters: InvoiceFilters,
 ) -> dict[str, Any]:
+    """Compare every invoice of ``plan`` against its expected billing periods.
+
+    The comparison always covers the whole plan: ``query_invoices`` filters
+    only narrow the invoice list it returns, not the periods checked here.
+    """
+
     plan_invoices = [inv for inv in invoices if inv.plan_id == plan.plan_id]
     expected = _money(plan.total_value / PERIODS_PER_YEAR[plan.cadence])
     periods = _expected_periods(plan=plan, invoices=plan_invoices)

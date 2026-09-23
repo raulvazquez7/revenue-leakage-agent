@@ -14,7 +14,6 @@ from revenue_leakage_agent.domain.models import (
     CreditMemoDraft,
     ExchangeRate,
     Invoice,
-    InvoiceFilters,
     MakeGoodInvoiceDraft,
     Plan,
     PlanAmendmentDraft,
@@ -77,7 +76,7 @@ def test_detects_annual_underbilling() -> None:
     )
     invoices = [_invoice("INV-5041", "SUB-2020", "2025-02-06", Decimal("135000"))]
 
-    comparison = _compare(plan, invoices, start_date=date(2025, 2, 1))
+    comparison = _compare(plan, invoices)
     findings = comparison["findings"]
 
     assert len(findings) == 1
@@ -124,7 +123,6 @@ def test_fx_overbilling_marked_already_corrected_by_credit_memo() -> None:
         invoices,
         credit_memos=[memo],
         exchange_rates=[EUR_USD_2025_08_12],
-        start_date=date(2025, 8, 1),
     )
     findings = comparison["findings"]
 
@@ -229,14 +227,12 @@ def _compare(
     *,
     credit_memos: list[CreditMemo] | None = None,
     exchange_rates: list[ExchangeRate] | None = None,
-    start_date: date | None = None,
 ) -> dict[str, Any]:
     return compare_plan_to_invoices(
         plan=plan,
         invoices=invoices,
         exchange_rates=exchange_rates or [],
         credit_memos=credit_memos or [],
-        filters=InvoiceFilters(plan_id=plan.plan_id, start_date=start_date),
     )
 
 
