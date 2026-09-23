@@ -38,9 +38,6 @@ dev = [
     "ruff>=0.16.8",
     "taskipy>=1.14.1",
 ]
-studio = [
-    "langgraph-cli[inmem]>=0.4.31",
-]
 
 [tool.taskipy.tasks]
 format = "ruff format ."
@@ -51,7 +48,7 @@ check = "ruff format --check . && ruff check . && pyright"
 precommit = "pre-commit run --all-files"
 ui = "streamlit run src/revenue_leakage_agent/interfaces/streamlit_app.py"
 cli = "revenue-leakage-agent"
-studio = "langgraph dev"
+studio = "uvx --with-editable . --from 'langgraph-cli[inmem]' langgraph dev"
 api = "uvicorn revenue_leakage_agent.interfaces.api:app --reload"
 
 [tool.pytest.ini_options]
