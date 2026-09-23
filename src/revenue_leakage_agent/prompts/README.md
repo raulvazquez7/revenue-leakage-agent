@@ -26,10 +26,10 @@ This folder contains runtime prompt assets for the Revenue Leakage Agent. The pr
 
 At runtime, each node loads the relevant Markdown file as its system prompt:
 
-- Router node: `router.md` plus compact active scope and recent messages.
-- Conversational node: `conversational.md` plus recent messages and compact state if recall is needed.
+- Router node: `router.md` plus compact active scope and the recent human/assistant dialogue (tool traffic is filtered out).
+- Conversational node: `conversational.md` plus the router's decision and the recent human/assistant dialogue.
 - Agent node: `agent.md` plus compact graph state and tool bindings.
 
-`load_prompt(name)` in `revenue_leakage_agent/prompts/__init__.py` reads these
+`load_prompt(name)` in `src/revenue_leakage_agent/prompts/__init__.py` reads these
 files as package data via `importlib.resources` and raises `FileNotFoundError`
 if a prompt is missing or empty.

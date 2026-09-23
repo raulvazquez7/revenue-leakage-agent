@@ -34,7 +34,7 @@ def _no_langfuse_tracing(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     after (so nothing here leaks into a later, unrelated ``get_settings()``
     call in the same process).
 
-    ``tests/test_tracing.py`` doesn't rely on ``get_settings()``/``.env`` at
+    ``tests/unit/test_tracing.py`` doesn't rely on ``get_settings()``/``.env`` at
     all — it builds ``AppSettings`` explicitly with dummy keys — so it is
     unaffected by this fixture forcing the ambient env empty.
 
