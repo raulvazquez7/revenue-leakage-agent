@@ -16,7 +16,14 @@ human approves.
 > data is a small synthetic JSON dataset and every "write" goes to local JSON
 > files.
 
-![Streamlit chat UI with starter prompts](docs/images/streamlit-ui.png)
+<p>
+  <img src="docs/images/streamlit-investigation.png" width="49%" alt="Streamlit UI: the agent's streamed answer for SUB-2001, a missing June 2025 invoice worth 10000 USD">
+  <img src="docs/images/streamlit-approval.png" width="49%" alt="Streamlit UI: approval card for a 10000 USD make-good invoice on SUB-2001, with Approve and Reject buttons">
+</p>
+
+*Left: "Investigate SUB-2001" finds the missing June invoice. Right: "Draft a
+make-good invoice for that and apply it" pauses on the approval card before
+anything is written.*
 
 ## What it does
 
@@ -147,7 +154,8 @@ Langfuse keys.
 
 ## Demo script
 
-Try these in order in the UI (steps 1, 2 and 5 are also starter buttons).
+Try these in order in the UI (steps 1, 2 and 5, plus an orphan-payments
+question, are also starter buttons).
 Replies come from a live model, so wording varies; the numbers come from the
 deterministic comparison and should not.
 
