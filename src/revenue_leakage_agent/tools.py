@@ -4,24 +4,24 @@ import json
 import unicodedata
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Any, cast
+from typing import Any, cast
 from uuid import uuid4
 
 from langchain_core.messages import ToolMessage
-from langchain_core.tools import BaseTool, InjectedToolCallId, tool
-from langgraph.prebuilt import InjectedState
+from langchain_core.tools import BaseTool, tool
+from langgraph.prebuilt import ToolRuntime
 from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
-from agents.billing_analysis import (
+from revenue_leakage_agent.context import AgentContext, resolve_store
+from revenue_leakage_agent.domain.billing import (
     apply_invoice_filters,
     compare_plan_to_invoices,
     convert_amount,
     related_credit_memos,
     summarize_invoices,
 )
-from agents.json_store import JsonStore
-from agents.schemas import (
+from revenue_leakage_agent.domain.models import (
     ACTION_DRAFT_ADAPTER,
     CreditMemoDraft,
     Currency,
@@ -30,7 +30,8 @@ from agents.schemas import (
     PlanAmendmentDraft,
     ToolError,
 )
-from agents.state import AgentState
+from revenue_leakage_agent.state import AgentState
+from revenue_leakage_agent.store import JsonStore
 
 
 class LoadPlanInput(BaseModel):
@@ -81,16 +82,16 @@ class ApplyInput(BaseModel):
 @tool
 def load_plan(
     plan_id: str,
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Load a billing plan by ID and update the active investigation scope."""
 
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     normalized_plan_id = plan_id.strip().upper()
     plan = store.get_plan(normalized_plan_id)
     if plan is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="PLAN_NOT_FOUND",
                 message=f"No billing plan exists for {normalized_plan_id}.",
@@ -100,7 +101,7 @@ def load_plan(
 
     payload = plan.model_dump(mode="json")
     return _state_command(
-        tool_call_id=tool_call_id,
+        runtime=runtime,
         payload={"ok": True, "plan": payload},
         active_scope={
             "plan_id": plan.plan_id,
@@ -112,7 +113,7 @@ def load_plan(
 
 @tool
 def query_invoices(
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
     plan_id: str | None = None,
     customer_name: str | None = None,
     start_date: date | None = None,
@@ -136,7 +137,7 @@ def query_invoices(
         currency=_validated_currency(currency),
         limit=limit,
     )
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     all_invoices = store.load_invoices()
     invoices, truncated = apply_invoice_filters(all_invoices, filters)
     summary = summarize_invoices(invoices)
@@ -153,7 +154,7 @@ def query_invoices(
         plan = store.get_plan(filters.plan_id)
         if plan is None:
             return _error_command(
-                tool_call_id,
+                runtime,
                 ToolError(
                     error_code="PLAN_NOT_FOUND",
                     message=f"No billing plan exists for {filters.plan_id}.",
@@ -180,7 +181,7 @@ def query_invoices(
         "plan_comparison": comparison,
     }
     return _state_command(
-        tool_call_id=tool_call_id,
+        runtime=runtime,
         payload=payload,
         findings=findings,
     )
@@ -192,6 +193,7 @@ def fx_convert(
     from_ccy: str,
     to_ccy: str,
     on_date: date,
+    runtime: ToolRuntime[AgentContext, AgentState],
 ) -> dict[str, Any]:
     """Convert an amount using the exchange-rate dataset."""
 
@@ -200,7 +202,7 @@ def fx_convert(
         from_ccy=from_ccy,
         to_ccy=to_ccy,
         on_date=on_date,
-        exchange_rates=JsonStore().load_exchange_rates(),
+        exchange_rates=resolve_store(runtime.context).load_exchange_rates(),
     )
 
 
@@ -209,17 +211,16 @@ def propose_make_good_invoice(
     plan_id: str,
     amount: Decimal,
     reason: str,
-    state: Annotated[AgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Create a draft make-good invoice without writing to sandbox ledgers."""
 
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     normalized_plan_id = plan_id.strip().upper()
     plan = store.get_plan(normalized_plan_id)
     if plan is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="PLAN_NOT_FOUND",
                 message=f"No billing plan exists for {normalized_plan_id}.",
@@ -228,7 +229,7 @@ def propose_make_good_invoice(
         )
 
     evidence = _matching_finding_evidence(
-        findings=state.get("findings", []),
+        findings=runtime.state.get("findings", []),
         plan_id=normalized_plan_id,
         amount=amount,
     )
@@ -240,9 +241,7 @@ def propose_make_good_invoice(
         reason=reason,
         evidence=evidence,
     )
-    return _draft_command(
-        tool_call_id=tool_call_id, draft=draft.model_dump(mode="json")
-    )
+    return _draft_command(runtime=runtime, draft=draft.model_dump(mode="json"))
 
 
 @tool
@@ -250,8 +249,7 @@ def propose_credit_memo(
     invoice_id: str,
     amount: Decimal,
     reason: str,
-    state: Annotated[AgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Create a draft credit memo to correct overbilling on a specific invoice.
 
@@ -260,12 +258,12 @@ def propose_credit_memo(
     to the sandbox until the human approves the pending action.
     """
 
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     normalized_invoice_id = invoice_id.strip().upper()
     invoice = store.get_invoice(normalized_invoice_id)
     if invoice is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="INVOICE_NOT_FOUND",
                 message=f"No invoice exists for {normalized_invoice_id}.",
@@ -276,7 +274,7 @@ def propose_credit_memo(
     plan = store.get_plan(invoice.plan_id) if invoice.plan_id else None
     currency: Currency = plan.currency if plan is not None else invoice.currency
     evidence = _matching_finding_evidence_by_invoice(
-        findings=state.get("findings", []),
+        findings=runtime.state.get("findings", []),
         invoice_id=normalized_invoice_id,
         amount=amount,
     )
@@ -289,9 +287,7 @@ def propose_credit_memo(
         reason=reason,
         evidence=evidence,
     )
-    return _draft_command(
-        tool_call_id=tool_call_id, draft=draft.model_dump(mode="json")
-    )
+    return _draft_command(runtime=runtime, draft=draft.model_dump(mode="json"))
 
 
 @tool
@@ -299,8 +295,7 @@ def propose_plan_amendment(
     plan_id: str,
     change_set: dict[str, Any],
     reason: str,
-    state: Annotated[AgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
 ) -> Command[Any]:
     """Create a draft plan amendment when the plan no longer matches the deal.
 
@@ -309,12 +304,12 @@ def propose_plan_amendment(
     sandbox until the human approves the pending action.
     """
 
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     normalized_plan_id = plan_id.strip().upper()
     plan = store.get_plan(normalized_plan_id)
     if plan is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="PLAN_NOT_FOUND",
                 message=f"No billing plan exists for {normalized_plan_id}.",
@@ -323,7 +318,7 @@ def propose_plan_amendment(
         )
     if not change_set:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="EMPTY_CHANGE_SET",
                 message="A plan amendment needs at least one field to change.",
@@ -343,23 +338,20 @@ def propose_plan_amendment(
         reason=reason,
         evidence=evidence,
     )
-    return _draft_command(
-        tool_call_id=tool_call_id, draft=draft.model_dump(mode="json")
-    )
+    return _draft_command(runtime=runtime, draft=draft.model_dump(mode="json"))
 
 
 @tool
 def apply(
-    state: Annotated[AgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
     action_id: str | None = None,
 ) -> Command[Any]:
     """Apply the pending action only after a human approval interrupt."""
 
-    pending_action = state.get("pending_action")
+    pending_action = runtime.state.get("pending_action")
     if pending_action is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="ACTION_NOT_FOUND",
                 message="There is no pending draft action to apply.",
@@ -370,7 +362,7 @@ def apply(
     draft = ACTION_DRAFT_ADAPTER.validate_python(pending_action)
     if action_id is not None and action_id != draft.action_id:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="ACTION_NOT_FOUND",
                 message=f"Pending draft is {draft.action_id}, not {action_id}.",
@@ -378,10 +370,10 @@ def apply(
             ),
         )
 
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     if store.get_action_already_applied(draft.action_id):
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="ACTION_ALREADY_APPLIED",
                 message=f"Action {draft.action_id} was already applied.",
@@ -407,10 +399,10 @@ def apply(
             "audit_log_entry": {"decision": decision},
         }
         return _state_command(
-            tool_call_id=tool_call_id,
+            runtime=runtime,
             payload={"ok": True, "status": "rejected", "action_id": draft.action_id},
             pending_action=None,
-            applied_actions=[*state.get("applied_actions", []), rejected],
+            applied_actions=[*runtime.state.get("applied_actions", []), rejected],
         )
 
     draft_payload = draft.model_dump(mode="json")
@@ -431,7 +423,7 @@ def apply(
         "audit_log_entry": audit_entry,
     }
     return _state_command(
-        tool_call_id=tool_call_id,
+        runtime=runtime,
         payload={
             "ok": True,
             "status": "applied",
@@ -440,14 +432,13 @@ def apply(
             "audit_log_entry": audit_entry,
         },
         pending_action=None,
-        applied_actions=[*state.get("applied_actions", []), applied],
+        applied_actions=[*runtime.state.get("applied_actions", []), applied],
     )
 
 
 @tool
 def rollback(
-    state: Annotated[AgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    runtime: ToolRuntime[AgentContext, AgentState],
     action_id: str | None = None,
 ) -> Command[Any]:
     """Undo an applied sandbox action after a human approval interrupt.
@@ -455,11 +446,11 @@ def rollback(
     Rolls back the most recent applied action, or a specific one by ``action_id``.
     """
 
-    applied_actions = state.get("applied_actions", [])
+    applied_actions = runtime.state.get("applied_actions", [])
     target = _find_rollback_target(applied_actions, action_id)
     if target is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="ACTION_NOT_FOUND",
                 message="There is no applied action available to roll back.",
@@ -482,7 +473,7 @@ def rollback(
     )
     if not _is_approved(decision):
         return _state_command(
-            tool_call_id=tool_call_id,
+            runtime=runtime,
             payload={
                 "ok": True,
                 "status": "rollback_rejected",
@@ -490,11 +481,11 @@ def rollback(
             },
         )
 
-    store = JsonStore()
+    store = resolve_store(runtime.context)
     removed = store.remove_sandbox_record(target["action_type"], target["action_id"])
     if removed is None:
         return _error_command(
-            tool_call_id,
+            runtime,
             ToolError(
                 error_code="SANDBOX_RECORD_NOT_FOUND",
                 message=f"No sandbox record found for {target['action_id']}.",
@@ -517,7 +508,7 @@ def rollback(
         for action in applied_actions
     ]
     return _state_command(
-        tool_call_id=tool_call_id,
+        runtime=runtime,
         payload={
             "ok": True,
             "status": "rolled_back",
@@ -544,7 +535,7 @@ def get_tools() -> list[BaseTool]:
 
 def _state_command(
     *,
-    tool_call_id: str,
+    runtime: ToolRuntime[AgentContext, AgentState],
     payload: dict[str, Any],
     **updates: Any,
 ) -> Command[Any]:
@@ -556,7 +547,7 @@ def _state_command(
                 "messages": [
                     ToolMessage(
                         content=json.dumps(payload, default=str),
-                        tool_call_id=tool_call_id,
+                        tool_call_id=_tool_call_id(runtime),
                     )
                 ],
             }
@@ -564,26 +555,38 @@ def _state_command(
     )
 
 
-def _error_command(tool_call_id: str, error: ToolError) -> Command[Any]:
+def _error_command(
+    runtime: ToolRuntime[AgentContext, AgentState], error: ToolError
+) -> Command[Any]:
     payload = {"ok": False, "error": error.model_dump(mode="json")}
     return _state_command(
-        tool_call_id=tool_call_id,
+        runtime=runtime,
         payload=payload,
         last_error=error.model_dump(mode="json"),
     )
 
 
-def _draft_command(*, tool_call_id: str, draft: dict[str, Any]) -> Command[Any]:
+def _draft_command(
+    *, runtime: ToolRuntime[AgentContext, AgentState], draft: dict[str, Any]
+) -> Command[Any]:
     payload = {
         "ok": True,
         "draft": draft,
         "message": "Draft created. Explicit human approval is required before apply.",
     }
     return _state_command(
-        tool_call_id=tool_call_id,
+        runtime=runtime,
         payload=payload,
         pending_action=draft,
     )
+
+
+def _tool_call_id(runtime: ToolRuntime[AgentContext, AgentState]) -> str:
+    """ToolNode always supplies the call ID; fail loudly if invoked without one."""
+
+    if runtime.tool_call_id is None:
+        raise ValueError("Tool was invoked without a tool_call_id.")
+    return runtime.tool_call_id
 
 
 def _write_sandbox_record(

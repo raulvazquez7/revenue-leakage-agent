@@ -1,6 +1,6 @@
 from typing import Any
 
-from settings.config import AppSettings
+from revenue_leakage_agent.config import AppSettings
 
 
 def get_langfuse_callbacks(settings: AppSettings) -> list[Any]:

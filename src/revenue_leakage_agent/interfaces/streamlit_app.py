@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-import sys
 import warnings
 from collections.abc import Iterable
-from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
 import streamlit as st
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from agents.graph import build_graph  # noqa: E402
-from agents.messages import extract_ai_text  # noqa: E402
-from langchain_core.messages import AIMessage, HumanMessage  # noqa: E402
-from langgraph.types import Command  # noqa: E402
+from revenue_leakage_agent.config import get_settings
+from revenue_leakage_agent.context import AgentContext
+from revenue_leakage_agent.graph import build_graph
+from revenue_leakage_agent.messages import extract_ai_text
+from revenue_leakage_agent.store import JsonStore
 
 warnings.filterwarnings(
     "ignore",
@@ -30,7 +29,9 @@ st.title("Revenue Leakage Agent")
 
 def _init_session() -> None:
     if "graph" not in st.session_state:
-        st.session_state.graph = build_graph()
+        st.session_state.graph = build_graph(checkpointer=InMemorySaver())
+    if "context" not in st.session_state:
+        st.session_state.context = AgentContext(store=JsonStore(get_settings()))
     if "thread_id" not in st.session_state:
         st.session_state.thread_id = f"streamlit-{uuid4()}"
     if "chat_messages" not in st.session_state:
@@ -39,7 +40,7 @@ def _init_session() -> None:
         st.session_state.pending_interrupt = None
 
 
-def _config() -> dict[str, dict[str, str]]:
+def _config() -> RunnableConfig:
     return {"configurable": {"thread_id": str(st.session_state.thread_id)}}
 
 
@@ -49,6 +50,10 @@ def _chat_messages() -> list[dict[str, str]]:
 
 def _graph() -> Any:
     return st.session_state.graph
+
+
+def _context() -> AgentContext:
+    return cast(AgentContext, st.session_state.context)
 
 
 def _run_stream(stream: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
@@ -85,6 +90,7 @@ def _run_user_message(content: str) -> dict[str, Any] | None:
         _graph().stream(
             {"messages": [HumanMessage(content=content)]},
             _config(),
+            context=_context(),
             stream_mode="updates",
         )
     )
@@ -95,6 +101,7 @@ def _resume(decision: str) -> None:
         _graph().stream(
             Command(resume={"decision": decision}),
             _config(),
+            context=_context(),
             stream_mode="updates",
         )
     )

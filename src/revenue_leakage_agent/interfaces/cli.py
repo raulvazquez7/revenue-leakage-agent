@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import json
-import sys
 import warnings
-from collections.abc import Iterable
-from pathlib import Path
+from collections.abc import Iterable, Iterator
 from typing import Any, cast
 from uuid import uuid4
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
+
+from revenue_leakage_agent.config import get_settings
+from revenue_leakage_agent.context import AgentContext
+from revenue_leakage_agent.graph import AgentGraph, build_graph
+from revenue_leakage_agent.messages import extract_ai_text
+from revenue_leakage_agent.state import AgentState
+from revenue_leakage_agent.store import JsonStore
 
 warnings.filterwarnings(
     "ignore",
@@ -14,20 +24,12 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from agents.graph import build_graph  # noqa: E402
-from agents.messages import extract_ai_text  # noqa: E402
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage  # noqa: E402
-from langgraph.types import Command  # noqa: E402
-
 
 def main() -> None:
-    graph = build_graph()
+    graph = build_graph(checkpointer=InMemorySaver())
+    context = AgentContext(store=JsonStore(get_settings()))
     thread_id = f"cli-{uuid4()}"
-    config = {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
     print("Revenue Leakage Agent CLI. Type 'exit' to quit.")
     print(f"Thread ID: {thread_id}")
@@ -39,10 +41,11 @@ def main() -> None:
             continue
 
         interrupt_payload = _run_stream(
-            graph.stream(
+            _stream(
+                graph,
                 {"messages": [HumanMessage(content=user_input)]},
                 config,
-                stream_mode="updates",
+                context,
             )
         )
         while interrupt_payload is not None:
@@ -66,12 +69,29 @@ def main() -> None:
                 print(f"- Reason: {action.get('reason')}")
             decision = input("Approve? [approve/reject]: ").strip().lower()
             interrupt_payload = _run_stream(
-                graph.stream(
+                _stream(
+                    graph,
                     Command(resume={"decision": decision}),
                     config,
-                    stream_mode="updates",
+                    context,
                 )
             )
+
+
+def _stream(
+    graph: AgentGraph,
+    payload: AgentState | Command[Any],
+    config: RunnableConfig,
+    context: AgentContext,
+) -> Iterator[dict[str, Any]]:
+    """Stream graph updates; the only place the untyped overload is touched."""
+
+    return graph.stream(  # pyright: ignore[reportUnknownMemberType]
+        payload,
+        config,
+        context=context,
+        stream_mode="updates",
+    )
 
 
 def _run_stream(stream: Iterable[dict[str, Any]]) -> dict[str, Any] | None:

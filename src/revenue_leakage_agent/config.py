@@ -117,19 +117,6 @@ class AppSettings(BaseSettings):
         default=Path("sandbox"),
         description="Writable sandbox ledgers.",
     )
-    prompts_dir: Path = Field(default=Path("prompts"), description="Prompt directory.")
-    router_prompt_name: str = Field(
-        default="router",
-        description="Router prompt filename without .md extension.",
-    )
-    agent_prompt_name: str = Field(
-        default="agent",
-        description="Investigator prompt filename without .md extension.",
-    )
-    conversational_prompt_name: str = Field(
-        default="conversational",
-        description="Conversational prompt filename without .md extension.",
-    )
 
     langfuse_secret_key: str | None = Field(default=None)
     langfuse_public_key: str | None = Field(default=None)

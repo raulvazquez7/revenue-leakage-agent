@@ -14,7 +14,8 @@ applies them to a local sandbox only after explicit human approval.
 ```bash
 uv sync --all-groups
 cp .env.example .env   # set OPENAI_API_KEY
-uv run streamlit run ui/app.py
+uv run task ui       # Streamlit UI
+uv run task cli      # terminal chat (same as: uv run revenue-leakage-agent)
 ```
 
 ## Quality checks

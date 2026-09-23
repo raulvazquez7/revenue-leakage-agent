@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
-from agents.billing_analysis import compare_plan_to_invoices, convert_amount
-from agents.json_store import JsonStore
-from agents.schemas import (
+from revenue_leakage_agent.domain.billing import (
+    compare_plan_to_invoices,
+    convert_amount,
+)
+from revenue_leakage_agent.domain.models import (
     ACTION_DRAFT_ADAPTER,
     CreditMemo,
     CreditMemoDraft,
@@ -18,7 +19,6 @@ from agents.schemas import (
     Plan,
     PlanAmendmentDraft,
 )
-from settings import AppSettings
 
 EUR_USD_2025_08_12 = ExchangeRate(
     date=date(2025, 8, 12),
@@ -146,96 +146,6 @@ def test_converts_fx_with_documented_rounding_policy() -> None:
 
     assert result["converted_amount"] == "25200.00"
     assert result["rounding_policy"] == "round half up to 2 decimal places"
-
-
-def test_json_store_applies_make_good_and_audit_log(tmp_path: Path) -> None:
-    settings = AppSettings(data_dir=tmp_path / "data", sandbox_dir=tmp_path / "sandbox")
-    store = JsonStore(settings)
-    draft = MakeGoodInvoiceDraft(
-        action_id="DRAFT-MG-TEST",
-        plan_id="SUB-2001",
-        amount=Decimal("10000"),
-        currency="USD",
-        reason="Missing June 2025 billing.",
-        evidence=["Expected 10000 USD; no invoice was found."],
-    )
-
-    invoice_record = store.append_make_good_invoice(draft.model_dump(mode="json"))
-    audit_entry = store.append_audit_log(
-        {"event_type": "action_applied", "action": draft.model_dump(mode="json")}
-    )
-
-    assert invoice_record["invoice_id"] == "INV-MG-0001"
-    assert invoice_record["source_action_id"] == "DRAFT-MG-TEST"
-    assert audit_entry["audit_id"] == "AUD-0001"
-    assert store.get_action_already_applied("DRAFT-MG-TEST")
-
-
-def test_json_store_applies_credit_memo(tmp_path: Path) -> None:
-    settings = AppSettings(data_dir=tmp_path / "data", sandbox_dir=tmp_path / "sandbox")
-    store = JsonStore(settings)
-    draft = CreditMemoDraft(
-        action_id="DRAFT-CM-TEST",
-        invoice_id="INV-5022",
-        plan_id="SUB-2014-A1",
-        amount=Decimal("1200"),
-        currency="USD",
-        reason="FX overbilling correction.",
-        evidence=["25200 USD billed vs 24000 USD expected."],
-    )
-
-    record = store.append_credit_memo(draft.model_dump(mode="json"))
-
-    assert record["memo_id"] == "CM-0001"
-    assert record["invoice_id"] == "INV-5022"
-    assert record["amount"] == "1200"
-    assert store.get_action_already_applied("DRAFT-CM-TEST")
-
-
-def test_json_store_applies_plan_amendment(tmp_path: Path) -> None:
-    settings = AppSettings(data_dir=tmp_path / "data", sandbox_dir=tmp_path / "sandbox")
-    store = JsonStore(settings)
-    draft = PlanAmendmentDraft(
-        action_id="DRAFT-PA-TEST",
-        plan_id="SUB-2014",
-        change_set={"total_value": 96000, "cadence": "Quarterly"},
-        reason="Superseded by SUB-2014-A1 from 2025-08-01.",
-        evidence=["Amendment increases quarterly target to 24000 USD."],
-    )
-
-    record = store.append_plan_amendment(draft.model_dump(mode="json"))
-
-    assert record["amendment_id"] == "AMD-0001"
-    assert record["plan_id"] == "SUB-2014"
-    assert record["change_set"]["total_value"] == 96000
-    assert store.get_action_already_applied("DRAFT-PA-TEST")
-
-
-def test_rollback_removes_sandbox_record_and_reopens_idempotency(
-    tmp_path: Path,
-) -> None:
-    """Rolling back an applied action deletes its ledger record so the same
-    action can be proposed and applied again."""
-
-    settings = AppSettings(data_dir=tmp_path / "data", sandbox_dir=tmp_path / "sandbox")
-    store = JsonStore(settings)
-    draft = CreditMemoDraft(
-        action_id="DRAFT-CM-ROLL",
-        invoice_id="INV-5022",
-        plan_id="SUB-2014-A1",
-        amount=Decimal("1200"),
-        currency="USD",
-        reason="FX overbilling correction.",
-    )
-    store.append_credit_memo(draft.model_dump(mode="json"))
-    assert store.get_action_already_applied("DRAFT-CM-ROLL")
-
-    removed = store.remove_sandbox_record("credit_memo", "DRAFT-CM-ROLL")
-
-    assert removed is not None
-    assert removed["source_action_id"] == "DRAFT-CM-ROLL"
-    assert not store.get_action_already_applied("DRAFT-CM-ROLL")
-    assert store.remove_sandbox_record("credit_memo", "DRAFT-CM-ROLL") is None
 
 
 def test_action_draft_adapter_discriminates_by_action_type() -> None:

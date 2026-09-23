@@ -7,9 +7,6 @@ This folder contains runtime prompt assets for the Revenue Leakage Agent. The pr
 - `router.md`: structured-output classifier for `RouteDecision`. It chooses `conversation` or `investigation` and rewrites implicit follow-ups.
 - `conversational.md`: lightweight responder for greetings, capability questions, general concepts, recall, and out-of-scope redirection.
 - `agent.md`: investigator prompt for tool use, evidence-backed revenue leakage analysis, draft creation, approval-aware apply, and recovery from tool errors.
-- `approval.md`: deterministic human-in-the-loop approval card and interrupt payload guidance. This is not an LLM decision prompt.
-- `response.md`: optional response-format template if a separate response node is introduced later.
-- `compaction.md`: optional summarization prompt for future context compaction.
 
 ## Context Engineering Notes
 
@@ -33,5 +30,6 @@ At runtime, each node loads the relevant Markdown file as its system prompt:
 - Conversational node: `conversational.md` plus recent messages and compact state if recall is needed.
 - Agent node: `agent.md` plus compact graph state and tool bindings.
 
-`agents/prompts.py` loads these files by configured prompt name and falls back
-to a safe inline default only if a prompt file is missing or empty.
+`load_prompt(name)` in `revenue_leakage_agent/prompts/__init__.py` reads these
+files as package data via `importlib.resources` and raises `FileNotFoundError`
+if a prompt is missing or empty.
